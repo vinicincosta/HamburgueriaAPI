@@ -242,11 +242,13 @@ class Pessoa(Base):
     senha_hash = Column(String, nullable=False)
     email = Column(String, nullable=False, unique=True)
 
+
     def __repr__(self):
         return 'Pessoa: {} {}>'.format(self.id_pessoa, self.nome_pessoa)
 
     def set_senha_hash(self, senha):
         self.senha_hash = generate_password_hash(senha)
+
 
     def check_password_hash(self, senha):
         return check_password_hash(self.senha_hash, senha)

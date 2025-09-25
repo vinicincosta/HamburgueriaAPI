@@ -332,7 +332,6 @@ def cadastrar_venda():
         dados = request.get_json()
         campos = ["data_venda", "lanche_id", "pessoa_id", "qtd_lanche", "mesa"]
 
-        # 1. Validação dos dados
         if not all(campo in dados for campo in campos):
             return jsonify({"error": "Campos obrigatórios não informados"}), 400
 
@@ -342,6 +341,8 @@ def cadastrar_venda():
         qtd_lanche = int(dados["qtd_lanche"])
         mesa = dados['mesa']
 
+        observacoes = dados.get("observacoes", {"adicionar": [], "remover": []})
+
         lanche = db_session.query(Lanche).filter_by(id_lanche=lanche_id).first()
         pessoa = db_session.query(Pessoa).filter_by(id_pessoa=pessoa_id).first()
 
@@ -350,25 +351,40 @@ def cadastrar_venda():
         if not pessoa:
             return jsonify({"error": "Pessoa não encontrada"}), 404
 
+        # Receita base do lanche
         receita = db_session.query(Lanche_insumo).filter_by(lanche_id=lanche_id).all()
         if not receita:
             return jsonify({"error": "Esse lanche não tem receita cadastrada"}), 400
 
-        # 2. Verificar estoque (precisa de insumos para TODOS os lanches)
-        for item in receita:
-            insumo = db_session.query(Insumo).filter_by(id_insumo=item.insumo_id).first()
-            if not insumo:
-                return jsonify({"error": f"Insumo ID {item.insumo_id} não encontrado"}), 404
-            if insumo.qtd_insumo < item.qtd_insumo * qtd_lanche:
-                return jsonify({"error": f"Estoque insuficiente para o insumo: {insumo.nome_insumo}"}), 400
+        # Montar receita ajustada
+        receita_final = {item.insumo_id: item.qtd_insumo for item in receita}
 
-        # 3. Dar baixa nos insumos (todos de uma vez)
-        for item in receita:
-            insumo = db_session.query(Insumo).filter_by(id_insumo=item.insumo_id).first()
-            insumo.qtd_insumo -= item.qtd_insumo * qtd_lanche
+        # Remover insumos
+        for rem in observacoes.get("remover", []):
+            if rem["insumo_id"] in receita_final:
+                receita_final[rem["insumo_id"]] = max(
+                    0, receita_final[rem["insumo_id"]] - rem["qtd"]
+                )
+
+        # Adicionar insumos extras
+        for add in observacoes.get("adicionar", []):
+            receita_final[add["insumo_id"]] = receita_final.get(add["insumo_id"], 0) + add["qtd"]
+
+        # Verificar estoque
+        for insumo_id, qtd in receita_final.items():
+            insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
+            if not insumo:
+                return jsonify({"error": f"Insumo ID {insumo_id} não encontrado"}), 404
+            if insumo.qtd_insumo < qtd * qtd_lanche:
+                return jsonify({"error": f"Estoque insuficiente para: {insumo.nome_insumo}"}), 400
+
+        # Dar baixa nos insumos
+        for insumo_id, qtd in receita_final.items():
+            insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
+            insumo.qtd_insumo -= qtd * qtd_lanche
             db_session.add(insumo)
 
-        # 4. Registrar várias vendas (uma por lanche)
+        # Registrar vendas
         vendas_registradas = []
         for _ in range(qtd_lanche):
             nova_venda = Venda(
@@ -383,7 +399,8 @@ def cadastrar_venda():
 
         return jsonify({
             "success": f"{qtd_lanche} vendas registradas com sucesso",
-            "vendas": vendas_registradas
+            "vendas": vendas_registradas,
+            "ajustes_receita": receita_final
         }), 201
 
     except Exception as e:
