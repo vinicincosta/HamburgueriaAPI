@@ -330,7 +330,7 @@ def cadastrar_venda():
     db_session = local_session()
     try:
         dados = request.get_json()
-        campos = ["data_venda", "lanche_id", "pessoa_id", "qtd_lanche"]
+        campos = ["data_venda", "lanche_id", "pessoa_id", "qtd_lanche", "mesa"]
 
         # 1. Validação dos dados
         if not all(campo in dados for campo in campos):
@@ -340,6 +340,7 @@ def cadastrar_venda():
         pessoa_id = dados["pessoa_id"]
         data_venda = dados["data_venda"]
         qtd_lanche = int(dados["qtd_lanche"])
+        mesa = dados['mesa']
 
         lanche = db_session.query(Lanche).filter_by(id_lanche=lanche_id).first()
         pessoa = db_session.query(Pessoa).filter_by(id_pessoa=pessoa_id).first()
@@ -424,7 +425,7 @@ def cadastrar_categoria():
 
 # LISTAR (GET)
 @app.route('/lanches', methods=['GET'])
-@jwt_required
+@jwt_required()
 def listar_lanches():
     db_session = local_session()
     try:

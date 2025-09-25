@@ -153,6 +153,7 @@ class Venda(Base):
     data_venda = Column(String(10), nullable=False, index=True)
     valor_venda = Column(Float, nullable=False, index=True)
     status_venda = Column(Boolean, default=True, index=True)
+    mesa = Column(Integer, nullable=False, index=True)
 
     # relacionamento com Lanche
     lanche_id = Column(Integer, ForeignKey('lanches.id_lanche'), nullable=False)
@@ -186,6 +187,7 @@ class Venda(Base):
             "status_venda": self.status_venda,
             "lanche_id": self.lanche_id,
             "pessoa_id": self.pessoa_id,
+            "mesa": self.mesa,
         }
         return var_venda
 
@@ -236,17 +238,15 @@ class Pessoa(Base):
     cpf = Column(String(11), nullable=True, index=True)
     salario = Column(Float, nullable=True, index=True)
     papel = Column(String(20), nullable=True, index=True)
-    status_pessoa = Column(String, nullable=False)
+    status_pessoa = Column(String, nullable=True)
     senha_hash = Column(String, nullable=False)
     email = Column(String, nullable=False, unique=True)
-
 
     def __repr__(self):
         return 'Pessoa: {} {}>'.format(self.id_pessoa, self.nome_pessoa)
 
     def set_senha_hash(self, senha):
         self.senha_hash = generate_password_hash(senha)
-
 
     def check_password_hash(self, senha):
         return check_password_hash(self.senha_hash, senha)
