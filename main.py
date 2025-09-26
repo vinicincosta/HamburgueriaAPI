@@ -53,13 +53,10 @@ def login():
             nome = user.nome_pessoa  # Obtém o nome do usuário
             print(f"Login bem-sucedido: {nome}, Papel: {papel}")  # Diagnóstico
             return jsonify(access_token=access_token, papel=papel, nome=nome)  # Retorna o nome também
-
         print("Credenciais inválidas.")  # Diagnóstico
         return jsonify({'msg': 'Credenciais inválidas'}), 401
-
     finally:
         db_session.close()
-
 @app.route('/cadastro_pessoas_login', methods=['POST'])
 def cadastro():
     dados = request.get_json()
@@ -544,7 +541,26 @@ def listar_entradas():
         return jsonify({"error": str(e)})
     finally:
         db_session.close()
+@app.route('/vendas_id/<id_mesa>', methods=['GET'])
+def listar_vendas_id(id_mesa):
+    db_session = local_session()
+    try:
+        sql_vendas = db_session.execute(select(Venda).where(mesa=id_mesa)).scalar()
+        if not sql_vendas:
+            return jsonify({'error':'venda não encontrada'})
+        return jsonify({"sucesso":"venda encontrada com sucesso",
+                        "id_venda": sql_vendas.id_venda,
+                        "data_venda": sql_vendas.data_venda,
+                        "valor_venda":sql_vendas.valor_venda,
+                        "status_venda": sql_vendas.status_venda,
+                        "mesa":sql_vendas.mesa,
+                        "lanche_id":sql_vendas.lanche_id,
+                        "pessoa_id":sql_vendas.pessoa_id})
 
+    except Exception as e:
+        return jsonify({"error": str(e)})
+    finally:
+        db_session.close()
 @app.route('/vendas', methods=['GET'])
 def listar_vendas():
     db_session = local_session()
@@ -552,7 +568,6 @@ def listar_vendas():
         sql_vendas = select(Venda)
         venda_resultado = db_session.execute(sql_vendas).scalars()
         vendas = []
-
         for n in venda_resultado:
             vendas.append(n.serialize())
             print(vendas[-1])
