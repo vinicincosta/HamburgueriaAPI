@@ -1,3 +1,5 @@
+import json
+
 from flask import Flask, jsonify, render_template, request, redirect, url_for, flash
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
@@ -330,7 +332,7 @@ def cadastrar_venda():
     db_session = local_session()
     try:
         dados = request.get_json()
-        campos = ["data_venda", "lanche_id", "pessoa_id", "qtd_lanche", "mesa"]
+        campos = ["data_venda", "lanche_id", "pessoa_id", "qtd_lanche", "detalhamento"]
 
         if not all(campo in dados for campo in campos):
             return jsonify({"error": "Campos obrigatórios não informados"}), 400
@@ -338,6 +340,7 @@ def cadastrar_venda():
         lanche_id = dados["lanche_id"]
         pessoa_id = dados["pessoa_id"]
         data_venda = dados["data_venda"]
+        detalhamento = dados["detalhamento"]
         qtd_lanche = int(dados["qtd_lanche"])
         endereco = dados['endereco']
         forma_pagamento = dados['forma_pagamento']
@@ -385,6 +388,9 @@ def cadastrar_venda():
             insumo.qtd_insumo -= qtd * qtd_lanche
             db_session.add(insumo)
 
+        # Converter chaves para string antes de salvar
+        receita_final_str_keys = {str(k): v for k, v in receita_final.items()}
+
         # Registrar vendas
         vendas_registradas = []
         for _ in range(qtd_lanche):
@@ -393,17 +399,21 @@ def cadastrar_venda():
                 lanche_id=lanche_id,
                 pessoa_id=pessoa_id,
                 valor_venda=lanche.valor_lanche,
+                detalhamento=detalhamento,
                 status_venda=True,
                 endereco=endereco,
                 forma_pagamento=forma_pagamento,
+                ajustes_receita=json.dumps(receita_final_str_keys)
             )
             nova_venda.save(db_session)
-            vendas_registradas.append(nova_venda.serialize())
+            venda_dict = nova_venda.serialize()
+            # converter de volta para int no retorno
+            venda_dict["ajustes_receita"] = {int(k): v for k, v in receita_final_str_keys.items()}
+            vendas_registradas.append(venda_dict)
 
         return jsonify({
             "success": f"{qtd_lanche} vendas registradas com sucesso",
-            "vendas": vendas_registradas,
-            "ajustes_receita": receita_final
+            "vendas": vendas_registradas
         }), 201
 
     except Exception as e:
@@ -411,6 +421,7 @@ def cadastrar_venda():
         return jsonify({"error": str(e)}), 500
     finally:
         db_session.close()
+
 
 @app.route('/categorias', methods=['POST'])
 def cadastrar_categoria():
@@ -444,6 +455,53 @@ def cadastrar_categoria():
         db_session.close()
 
 # LISTAR (GET)
+@app.route('/vendas/receitas', methods=['GET'])
+def listar_receitas_vendas():
+    db_session = local_session()
+    try:
+        vendas = db_session.query(Venda).all()
+        vendas_receitas = []
+
+        for venda in vendas:
+            lanche = db_session.query(Lanche).filter_by(id_lanche=venda.lanche_id).first()
+            if not lanche:
+                continue
+
+            # Receita base do lanche
+            receita_base = db_session.query(Lanche_insumo).filter_by(lanche_id=lanche.id_lanche).all()
+            receita_dict = {str(item.insumo_id): item.qtd_insumo for item in receita_base}
+
+            # Aplicar ajustes da venda
+            if hasattr(venda, "ajustes_receita") and venda.ajustes_receita:
+                ajustes = json.loads(venda.ajustes_receita)
+                for insumo_id, qtd in ajustes.items():
+                    receita_dict[str(insumo_id)] = qtd  # sobrescreve ou adiciona
+
+            # Transformar em lista de insumos com nome
+            receita_completa = []
+            for insumo_id, qtd in receita_dict.items():
+                insumo = db_session.query(Insumo).filter_by(id_insumo=int(insumo_id)).first()
+                if insumo:
+                    receita_completa.append({
+                        "insumo_id": insumo.id_insumo,
+                        "nome": insumo.nome_insumo,
+                        "quantidade": qtd
+                    })
+
+            vendas_receitas.append({
+                "venda_id": venda.id_venda,
+                "lanche": lanche.nome_lanche,
+                "pessoa_id": venda.pessoa_id,
+                "receita_completa": receita_completa
+            })
+
+        return jsonify({"vendas_receitas": vendas_receitas}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db_session.close()
+
 @app.route('/lanches', methods=['GET'])
 @jwt_required()
 def listar_lanches():
