@@ -459,7 +459,8 @@ def cadastrar_categoria():
 def listar_receitas_vendas():
     db_session = local_session()
     try:
-        vendas = db_session.query(Venda).all()
+        # Pega apenas vendas ativas
+        vendas = db_session.query(Venda).filter_by(status_venda=True).all()
         vendas_receitas = []
 
         for venda in vendas:
