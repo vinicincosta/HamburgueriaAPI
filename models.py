@@ -153,10 +153,10 @@ class Venda(Base):
     data_venda = Column(String(10), nullable=False, index=True)
     valor_venda = Column(Float, nullable=False, index=True)
     status_venda = Column(Boolean, default=True, index=True)
-
-    endereco = Column(String, nullable=False, unique=True)
-    forma_pagamento = Column(String, nullable=False, unique=True)
-
+    detalhamento = Column(String(50), nullable=False, index=True)
+    ajustes_receita = Column(String(100), nullable=False, index=True)
+    endereco = Column(String, nullable=False)
+    forma_pagamento = Column(String, nullable=False)
 
     # relacionamento com Lanche
     lanche_id = Column(Integer, ForeignKey('lanches.id_lanche'), nullable=False)
@@ -188,6 +188,8 @@ class Venda(Base):
             "data_venda": self.data_venda,
             "valor_venda": self.valor_venda,
             "status_venda": self.status_venda,
+            "detalhamento": self.detalhamento,
+            "ajustes_receita": self.ajustes_receita,
             "lanche_id": self.lanche_id,
             "pessoa_id": self.pessoa_id,
             "forma_pagamento": self.forma_pagamento,
