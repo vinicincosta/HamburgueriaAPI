@@ -339,7 +339,8 @@ def cadastrar_venda():
         pessoa_id = dados["pessoa_id"]
         data_venda = dados["data_venda"]
         qtd_lanche = int(dados["qtd_lanche"])
-        mesa = dados['mesa']
+        endereco = dados['endereco']
+        forma_pagamento = dados['forma_pagamento']
 
         observacoes = dados.get("observacoes", {"adicionar": [], "remover": []})
 
@@ -392,7 +393,9 @@ def cadastrar_venda():
                 lanche_id=lanche_id,
                 pessoa_id=pessoa_id,
                 valor_venda=lanche.valor_lanche,
-                status_venda=True
+                status_venda=True,
+                endereco=endereco,
+                forma_pagamento=forma_pagamento,
             )
             nova_venda.save(db_session)
             vendas_registradas.append(nova_venda.serialize())

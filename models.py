@@ -153,7 +153,10 @@ class Venda(Base):
     data_venda = Column(String(10), nullable=False, index=True)
     valor_venda = Column(Float, nullable=False, index=True)
     status_venda = Column(Boolean, default=True, index=True)
-    mesa = Column(Integer, nullable=False, index=True)
+
+    endereco = Column(String, nullable=False, unique=True)
+    forma_pagamento = Column(String, nullable=False, unique=True)
+
 
     # relacionamento com Lanche
     lanche_id = Column(Integer, ForeignKey('lanches.id_lanche'), nullable=False)
@@ -187,7 +190,8 @@ class Venda(Base):
             "status_venda": self.status_venda,
             "lanche_id": self.lanche_id,
             "pessoa_id": self.pessoa_id,
-            "mesa": self.mesa,
+            "forma_pagamento": self.forma_pagamento,
+            "endereco": self.endereco,
         }
         return var_venda
 
@@ -198,6 +202,7 @@ class Entrada(Base):
     data_entrada = Column(String(10), nullable=False, index=True)
     qtd_entrada = Column(Integer, nullable=False, index=True)
     valor_entrada = Column(Float, nullable=False, index=True)
+
 
     # relacionamento com Insumo
     insumo_id = Column(Integer, ForeignKey('insumos.id_insumo'), nullable=False)
