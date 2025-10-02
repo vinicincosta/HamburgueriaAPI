@@ -60,6 +60,7 @@ def login():
     finally:
         db_session.close()
 @app.route('/cadastro_pessoas_login', methods=['POST'])
+@jwt_required
 def cadastro():
     dados = request.get_json()
     nome_pessoa = dados['nome_pessoa']
@@ -150,6 +151,7 @@ def cadastro_usuarios():
         banco.close()
 
 @app.route('/lanches', methods=['POST'])
+@jwt_required
 def cadastrar_lanche():
     db_session = local_session()
     try:
@@ -185,6 +187,7 @@ def cadastrar_lanche():
         db_session.close()
 
 @app.route("/entradas", methods=["POST"])
+@jwt_required
 def cadastrar_entrada():
     dados = request.json
 
@@ -236,6 +239,7 @@ def cadastrar_entrada():
         return jsonify({"error": f"Erro ao salvar entrada: {str(e)}"}), 500
 
 @app.route('/insumos', methods=['POST'])
+@jwt_required
 def cadastrar_insumo():
     db_session = local_session()
     try:
@@ -268,6 +272,7 @@ def cadastrar_insumo():
         db_session.close()
 
 @app.route("/lanche_insumos", methods=["POST"])
+@jwt_required
 def cadastrar_lanche_insumo():
     dados = request.json
 
@@ -325,6 +330,7 @@ def cadastrar_lanche_insumo():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/vendas', methods=['POST'])
+@jwt_required
 def cadastrar_venda():
     db_session = local_session()
     try:
@@ -421,6 +427,7 @@ def cadastrar_venda():
 
 
 @app.route('/categorias', methods=['POST'])
+@jwt_required
 def cadastrar_categoria():
     db_session = local_session()
     try:
@@ -523,6 +530,7 @@ def listar_lanches():
         db_session.close()
 
 @app.route('/insumos', methods=['GET'])
+@jwt_required
 def listar_insumos():
     db_session = local_session()
     try:
@@ -543,6 +551,7 @@ def listar_insumos():
         db_session.close()
 
 @app.route('/lanche_insumos', methods=['GET'])
+@jwt_required
 def listar_lanche_insumos():
     db_session = local_session()
     try:
@@ -564,6 +573,7 @@ def listar_lanche_insumos():
         db_session.close()
 
 @app.route('/categorias', methods=['GET'])
+@jwt_required
 def listar_categorias():
     db_session = local_session()
     try:
@@ -583,6 +593,7 @@ def listar_categorias():
         db_session.close()
 
 @app.route('/entradas', methods=['GET'])
+@jwt_required
 def listar_entradas():
     db_session = local_session()
     try:
@@ -601,6 +612,7 @@ def listar_entradas():
     finally:
         db_session.close()
 @app.route('/vendas_id/<id_mesa>', methods=['GET'])
+@jwt_required
 def listar_vendas_id(id_mesa):
     db_session = local_session()
     try:
@@ -621,6 +633,7 @@ def listar_vendas_id(id_mesa):
     finally:
         db_session.close()
 @app.route('/vendas', methods=['GET'])
+@jwt_required
 def listar_vendas():
     db_session = local_session()
     try:
@@ -638,6 +651,7 @@ def listar_vendas():
     finally:
         db_session.close()
 @app.route('/pessoas', methods=['GET'])
+@jwt_required
 def listar_pessoas():
     db_session = local_session()
     try:
@@ -658,6 +672,7 @@ def listar_pessoas():
         db_session.close()
 
 @app.route('/get_insumo_id/<id_insumo>', methods=['GET'])
+@jwt_required
 def get_insumo_id(id_insumo):
     db_session = local_session()
     try:
@@ -685,6 +700,7 @@ def get_insumo_id(id_insumo):
 
 # EDITAR (PUT)
 @app.route('/lanches/<id_lanche>', methods=['PUT'])
+@jwt_required
 def editar_lanche(id_lanche):
     db_session = local_session()
     try:
@@ -726,6 +742,7 @@ def editar_lanche(id_lanche):
         db_session.close()
 
 @app.route('/insumos/<id_insumo>', methods=['PUT'])
+@jwt_required
 def editar_insumo(id_insumo):
     db_session = local_session()
     try:
@@ -766,6 +783,7 @@ def editar_insumo(id_insumo):
         db_session.close()
 
 @app.route('/categorias/<id_categoria>', methods=['PUT'])
+@jwt_required
 def editar_categoria(id_categoria):
     db_session = local_session()
     try:
@@ -810,6 +828,7 @@ def editar_categoria(id_categoria):
         db_session.close()
 
 @app.route('/pessoas/<id_pessoa>', methods=['PUT'])
+@jwt_required
 def editar_pessoa(id_pessoa):
     db_session = local_session()
     try:
@@ -855,6 +874,7 @@ def editar_pessoa(id_pessoa):
         db_session.close()
 
 @app.route("/lanche_insumo", methods=["DELETE"])
+@jwt_required
 def deletar_lanche_insumo():
     dados = request.json
 
