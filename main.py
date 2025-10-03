@@ -508,7 +508,7 @@ def listar_receitas_vendas():
         db_session.close()
 
 @app.route('/lanches', methods=['GET'])
-@jwt_required()
+# @jwt_required()
 def listar_lanches():
     db_session = local_session()
     try:
