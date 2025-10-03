@@ -14,22 +14,38 @@ app.config['JWT_SECRET_KEY'] = "03050710"
 jwt = JWTManager(app)
 
 # Login
-def admin_required(fn):
-    @wraps(fn)
-    def wrapper(*args, **kwargs):
-        current_user = get_jwt_identity()
-        print(f'c_user:{current_user}')
-        db = local_session()
-        try:
-            sql = select(Pessoa).where(Pessoa.email == current_user)
-            user = db.execute(sql).scalar()
-            print(f'teste admin: {user and user.papel == "admin"} {user.papel}')
-            if user and user.papel == "admin":
-                return fn(*args, **kwargs)
-            return jsonify(msg="Acesso negado: Requer privilégios de administrador"), 403
-        finally:
-            db.close()
-    return wrapper
+# def admin_required(fn):
+#     @wraps(fn)
+#     def wrapper(*args, **kwargs):
+#         current_user = get_jwt_identity()
+#         print(f'c_user:{current_user}')
+#         db = local_session()
+#         try:
+#             sql = select(Pessoa).where(Pessoa.email == current_user)
+#             user = db.execute(sql).scalar()
+#             print(f'teste admin: {user and user.papel == "admin"} {user.papel}')
+#             if user and user.papel == "admin":
+#                 return fn(*args, **kwargs)
+#             return jsonify(msg="Acesso negado: Requer privilégios de administrador"), 403
+#         finally:
+#             db.close()
+#     return wrapper
+# def roles_required(*roles):
+#     def wrapper(fn):
+#         @wraps(fn)
+#         def decorated(*args, **kwargs):
+#             current_user = get_jwt_identity()
+#             db = local_session()
+#             try:
+#                 sql = select(Pessoa).where(Pessoa.email == current_user)
+#                 user = db.execute(sql).scalar()
+#                 if user and user.papel in roles:
+#                     return fn(*args, **kwargs)
+#                 return jsonify(msg="Acesso negado: privilégios insuficientes"), 403
+#             finally:
+#                 db.close()
+#         return decorated
+#     return wrapper
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -508,7 +524,8 @@ def listar_receitas_vendas():
         db_session.close()
 
 @app.route('/lanches', methods=['GET'])
-# @jwt_required()
+@jwt_required()
+# @roles_required('cliente', 'garcom')
 def listar_lanches():
     db_session = local_session()
     try:
@@ -531,6 +548,7 @@ def listar_lanches():
 
 @app.route('/insumos', methods=['GET'])
 @jwt_required()
+# @roles_required('garcom')
 def listar_insumos():
     db_session = local_session()
     try:
