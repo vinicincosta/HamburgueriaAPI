@@ -30,22 +30,22 @@ jwt = JWTManager(app)
 #         finally:
 #             db.close()
 #     return wrapper
-# def roles_required(*roles):
-#     def wrapper(fn):
-#         @wraps(fn)
-#         def decorated(*args, **kwargs):
-#             current_user = get_jwt_identity()
-#             db = local_session()
-#             try:
-#                 sql = select(Pessoa).where(Pessoa.email == current_user)
-#                 user = db.execute(sql).scalar()
-#                 if user and user.papel in roles:
-#                     return fn(*args, **kwargs)
-#                 return jsonify(msg="Acesso negado: privilégios insuficientes"), 403
-#             finally:
-#                 db.close()
-#         return decorated
-#     return wrapper
+def roles_required(*roles):
+    def wrapper(fn):
+        @wraps(fn)
+        def decorated(*args, **kwargs):
+            current_user = get_jwt_identity()
+            db = local_session()
+            try:
+                sql = select(Pessoa).where(Pessoa.email == current_user)
+                user = db.execute(sql).scalar()
+                if user and user.papel in roles:
+                    return fn(*args, **kwargs)
+                return jsonify(msg="Acesso negado: privilégios insuficientes"), 403
+            finally:
+                db.close()
+        return decorated
+    return wrapper
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -70,7 +70,7 @@ def login():
             papel = user.papel  # Obtém o papel do usuário
             nome = user.nome_pessoa  # Obtém o nome do usuário
             print(f"Login bem-sucedido: {nome}, Papel: {papel}")  # Diagnóstico
-            login_user(user)
+            # login_user(user)
             return jsonify(access_token=access_token, papel=papel, nome=nome)  # Retorna o nome também
         print("Credenciais inválidas.")  # Diagnóstico
         return jsonify({'msg': 'Credenciais inválidas'}), 401
@@ -78,6 +78,7 @@ def login():
         db_session.close()
 @app.route('/cadastro_pessoas_login', methods=['POST'])
 @jwt_required()
+@roles_required('admin')
 def cadastro():
     dados = request.get_json()
     nome_pessoa = dados['nome_pessoa']
@@ -137,10 +138,10 @@ def cadastro_usuarios():
     dados = request.get_json()
     nome_pessoa = dados['nome_pessoa']
     email = dados['email']
-    papel = dados.get('papel','usuario')
+    papel = dados.get('papel','cliente')
     senha = dados['senha']
     cpf = dados['cpf']
-    salario = dados['salario']
+    # salario = dados['salario']
 
     if not nome_pessoa or not email or not senha:
         return jsonify({"msg": "Nome de usuário, email e senha são obrigatórios"}), 400
@@ -169,6 +170,7 @@ def cadastro_usuarios():
 
 @app.route('/lanches', methods=['POST'])
 @jwt_required()
+@roles_required('cliente', 'garcom', 'cozinha','admin')
 def cadastrar_lanche():
     db_session = local_session()
     try:
@@ -205,6 +207,7 @@ def cadastrar_lanche():
 
 @app.route("/entradas", methods=["POST"])
 @jwt_required()
+@roles_required('admin')
 def cadastrar_entrada():
     dados = request.json
 
@@ -257,6 +260,7 @@ def cadastrar_entrada():
 
 @app.route('/insumos', methods=['POST'])
 @jwt_required()
+@roles_required('admin')
 def cadastrar_insumo():
     db_session = local_session()
     try:
@@ -290,6 +294,7 @@ def cadastrar_insumo():
 
 @app.route("/lanche_insumos", methods=["POST"])
 @jwt_required()
+@roles_required('admin')
 def cadastrar_lanche_insumo():
     dados = request.json
 
@@ -348,6 +353,7 @@ def cadastrar_lanche_insumo():
 
 @app.route('/vendas', methods=['POST'])
 @jwt_required()
+@roles_required('garcom', 'cozinha', 'admin')
 def cadastrar_venda():
     db_session = local_session()
     try:
@@ -445,6 +451,7 @@ def cadastrar_venda():
 
 @app.route('/categorias', methods=['POST'])
 @jwt_required()
+@roles_required('admin')
 def cadastrar_categoria():
     db_session = local_session()
     try:
@@ -477,6 +484,8 @@ def cadastrar_categoria():
 
 # LISTAR (GET)
 @app.route('/vendas/receitas', methods=['GET'])
+@jwt_required()
+@roles_required('cozinha', 'admin')
 def listar_receitas_vendas():
     db_session = local_session()
     try:
@@ -526,7 +535,7 @@ def listar_receitas_vendas():
 
 @app.route('/lanches', methods=['GET'])
 @jwt_required()
-# @roles_required('cliente', 'garcom')
+@roles_required('cliente', 'garcom', 'cozinha', 'admin')
 def listar_lanches():
     db_session = local_session()
     try:
@@ -549,7 +558,7 @@ def listar_lanches():
 
 @app.route('/insumos', methods=['GET'])
 @jwt_required()
-# @roles_required('garcom')
+@roles_required('admin')
 def listar_insumos():
     db_session = local_session()
     try:
@@ -571,6 +580,7 @@ def listar_insumos():
 
 @app.route('/lanche_insumos', methods=['GET'])
 @jwt_required()
+@roles_required('admin')
 def listar_lanche_insumos():
     db_session = local_session()
     try:
@@ -593,6 +603,7 @@ def listar_lanche_insumos():
 
 @app.route('/categorias', methods=['GET'])
 @jwt_required()
+@roles_required('admin')
 def listar_categorias():
     db_session = local_session()
     try:
@@ -613,6 +624,7 @@ def listar_categorias():
 
 @app.route('/entradas', methods=['GET'])
 @jwt_required()
+@roles_required('admin')
 def listar_entradas():
     db_session = local_session()
     try:
@@ -632,6 +644,7 @@ def listar_entradas():
         db_session.close()
 @app.route('/vendas_id/<id_mesa>', methods=['GET'])
 @jwt_required()
+@roles_required('admin')
 def listar_vendas_id(id_mesa):
     db_session = local_session()
     try:
@@ -653,6 +666,7 @@ def listar_vendas_id(id_mesa):
         db_session.close()
 @app.route('/vendas', methods=['GET'])
 @jwt_required()
+@roles_required('admin')
 def listar_vendas():
     db_session = local_session()
     try:
@@ -671,6 +685,7 @@ def listar_vendas():
         db_session.close()
 @app.route('/pessoas', methods=['GET'])
 @jwt_required()
+@roles_required('admin')
 def listar_pessoas():
     db_session = local_session()
     try:
@@ -692,6 +707,7 @@ def listar_pessoas():
 
 @app.route('/get_insumo_id/<id_insumo>', methods=['GET'])
 @jwt_required()
+@roles_required('cozinha', 'admin')
 def get_insumo_id(id_insumo):
     db_session = local_session()
     try:
