@@ -8,7 +8,7 @@ from models import *
 from flask_jwt_extended import create_access_token, jwt_required, JWTManager, get_jwt_identity
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
-
+from flask_login import LoginManager, current_user, login_required, login_user, logout_user, current_user
 app = Flask(__name__)
 app.config['JWT_SECRET_KEY'] = "03050710"
 jwt = JWTManager(app)
@@ -70,6 +70,7 @@ def login():
             papel = user.papel  # Obtém o papel do usuário
             nome = user.nome_pessoa  # Obtém o nome do usuário
             print(f"Login bem-sucedido: {nome}, Papel: {papel}")  # Diagnóstico
+            login_user(user)
             return jsonify(access_token=access_token, papel=papel, nome=nome)  # Retorna o nome também
         print("Credenciais inválidas.")  # Diagnóstico
         return jsonify({'msg': 'Credenciais inválidas'}), 401
