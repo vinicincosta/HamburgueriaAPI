@@ -132,6 +132,50 @@ def cadastro():
     finally:
         db_session.close()
 
+@app.route('/update_insumo/<int:id_insumo>', methods=['PUT'])
+def update_insumo(id_insumo):
+    db_session = local_session()
+    try:
+        # Se não houver JSON, define um dicionário vazio
+        data = request.get_json(silent=True) or {}
+
+        insumo = db_session.query(Insumo).filter_by(id_insumo=id_insumo).first()
+        if not insumo:
+            return jsonify({"error": "Insumo não encontrado"}), 404
+
+        # Atualiza os dados apenas se vierem no JSON, senão mantém os atuais
+        insumo.nome_insumo = data.get('nome_insumo', insumo.nome_insumo)
+        insumo.qtd_insumo = data.get('qtd_insumo', insumo.qtd_insumo)
+        insumo.custo = data.get('custo', insumo.custo)
+        insumo.categoria_id = data.get('categoria_id', insumo.categoria_id)
+
+        LIMITE_MINIMO = 5
+        if insumo.qtd_insumo <= LIMITE_MINIMO:
+            # pega todos os lanches que usam esse insumo
+            lanches_relacionados = (
+                db_session.query(Lanche)
+                .join(Lanche_insumo, Lanche.id_lanche == Lanche_insumo.lanche_id)
+                .filter(Lanche_insumo.insumo_id == insumo.id_insumo)
+                .all()
+            )
+
+            # desativa os lanches
+            for lanche in lanches_relacionados:
+                lanche.disponivel = False
+
+        db_session.commit()
+        return jsonify({
+            "success": True,
+            "message": "Insumo atualizado com sucesso.",
+            "insumo": insumo.serialize()
+        }), 200
+
+    except Exception as e:
+        db_session.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db_session.close()
+
 # Cadastro (POST)
 @app.route('/usuarios', methods=['POST'])
 def cadastro_usuarios():
@@ -169,8 +213,8 @@ def cadastro_usuarios():
         banco.close()
 
 @app.route('/lanches', methods=['POST'])
-@jwt_required()
-@roles_required('cliente', 'garcom', 'cozinha','admin')
+# @jwt_required()
+# @roles_required('cliente', 'garcom', 'cozinha','admin')
 def cadastrar_lanche():
     db_session = local_session()
     try:
@@ -206,8 +250,8 @@ def cadastrar_lanche():
         db_session.close()
 
 @app.route("/entradas", methods=["POST"])
-@jwt_required()
-@roles_required('admin')
+# @jwt_required()
+# @roles_required('admin')
 def cadastrar_entrada():
     dados = request.json
 
@@ -259,14 +303,14 @@ def cadastrar_entrada():
         return jsonify({"error": f"Erro ao salvar entrada: {str(e)}"}), 500
 
 @app.route('/insumos', methods=['POST'])
-@jwt_required()
-@roles_required('admin')
+# @jwt_required()
+# @roles_required('admin')
 def cadastrar_insumo():
     db_session = local_session()
     try:
         dados_insumo = request.get_json()
 
-        campos_obrigatorios = ["nome_insumo", "categoria_id"]
+        campos_obrigatorios = ["nome_insumo", "categoria_id", "custo"]
 
         if not all(campo in dados_insumo for campo in campos_obrigatorios):
             return jsonify({"error": "Campo inexistente"}), 400
@@ -278,6 +322,7 @@ def cadastrar_insumo():
             form_novo_insumo = Insumo(
                 nome_insumo=dados_insumo['nome_insumo'],
                 categoria_id=dados_insumo['categoria_id'],
+                custo=dados_insumo['custo'],
             )
             print(form_novo_insumo)
             form_novo_insumo.save(db_session)
@@ -293,8 +338,8 @@ def cadastrar_insumo():
         db_session.close()
 
 @app.route("/lanche_insumos", methods=["POST"])
-@jwt_required()
-@roles_required('admin')
+# @jwt_required()
+# @roles_required('admin')
 def cadastrar_lanche_insumo():
     dados = request.json
 
@@ -352,8 +397,8 @@ def cadastrar_lanche_insumo():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/vendas', methods=['POST'])
-@jwt_required()
-@roles_required('garcom', 'cozinha', 'admin')
+# @jwt_required()
+# @roles_required('garcom', 'cozinha', 'admin')
 def cadastrar_venda():
     db_session = local_session()
     try:
@@ -393,12 +438,12 @@ def cadastrar_venda():
         for rem in observacoes.get("remover", []):
             if rem["insumo_id"] in receita_final:
                 receita_final[rem["insumo_id"]] = max(
-                    0, receita_final[rem["insumo_id"]] - rem["qtd"]
+                    0, receita_final[rem["insumo_id"]] - rem["qtd"] * 100
                 )
 
         # Adicionar insumos extras
         for add in observacoes.get("adicionar", []):
-            receita_final[add["insumo_id"]] = receita_final.get(add["insumo_id"], 0) + add["qtd"]
+            receita_final[add["insumo_id"]] = receita_final.get(add["insumo_id"], 0) + add["qtd"] * 100
 
         # Verificar estoque
         for insumo_id, qtd in receita_final.items():
@@ -450,8 +495,8 @@ def cadastrar_venda():
 
 
 @app.route('/categorias', methods=['POST'])
-@jwt_required()
-@roles_required('admin')
+# @jwt_required()
+# @roles_required('admin')
 def cadastrar_categoria():
     db_session = local_session()
     try:
@@ -484,8 +529,8 @@ def cadastrar_categoria():
 
 # LISTAR (GET)
 @app.route('/vendas/receitas', methods=['GET'])
-@jwt_required()
-@roles_required('cozinha', 'admin')
+# @jwt_required()
+# @roles_required('cozinha', 'admin')
 def listar_receitas_vendas():
     db_session = local_session()
     try:
@@ -534,8 +579,8 @@ def listar_receitas_vendas():
         db_session.close()
 
 @app.route('/lanches', methods=['GET'])
-@jwt_required()
-@roles_required('cliente', 'garcom', 'cozinha', 'admin')
+# @jwt_required()
+# @roles_required('cliente', 'garcom', 'cozinha', 'admin')
 def listar_lanches():
     db_session = local_session()
     try:
@@ -557,8 +602,8 @@ def listar_lanches():
         db_session.close()
 
 @app.route('/insumos', methods=['GET'])
-@jwt_required()
-@roles_required('admin')
+# @jwt_required()
+# @roles_required('admin')
 def listar_insumos():
     db_session = local_session()
     try:
@@ -579,8 +624,8 @@ def listar_insumos():
         db_session.close()
 
 @app.route('/lanche_insumos', methods=['GET'])
-@jwt_required()
-@roles_required('admin')
+# @jwt_required()
+# @roles_required('admin')
 def listar_lanche_insumos():
     db_session = local_session()
     try:
@@ -601,9 +646,48 @@ def listar_lanche_insumos():
     finally:
         db_session.close()
 
+@app.route('/lanche_receita/<int:lanche_id>', methods=['GET'])
+# @jwt_required()
+# @roles_required('cozinha', 'admin')
+def listar_receita_lanche(lanche_id):
+    db_session = local_session()
+    try:
+        # Verifica se o lanche existe
+        lanche = db_session.query(Lanche).filter_by(id_lanche=lanche_id).first()
+        if not lanche:
+            return jsonify({"error": "Lanche não encontrado"}), 404
+
+        # Pega os insumos do lanche
+        lanche_insumos = db_session.query(Lanche_insumo).filter_by(lanche_id=lanche_id).all()
+        if not lanche_insumos:
+            return jsonify({"error": "Este lanche não possui insumos cadastrados"}), 400
+
+        # Monta a receita
+        receita = []
+        for item in lanche_insumos:
+            insumo = db_session.query(Insumo).filter_by(id_insumo=item.insumo_id).first()
+            if insumo:
+                receita.append({
+                    "insumo_id": insumo.id_insumo,
+                    "nome_insumo": insumo.nome_insumo,
+                    "quantidade_base": item.qtd_insumo
+                })
+
+        return jsonify({
+            "lanche_id": lanche.id_lanche,
+            "nome_lanche": lanche.nome_lanche,
+            "receita": receita
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db_session.close()
+
+
 @app.route('/categorias', methods=['GET'])
-@jwt_required()
-@roles_required('admin')
+# @jwt_required()
+# @roles_required('admin')
 def listar_categorias():
     db_session = local_session()
     try:
@@ -623,8 +707,8 @@ def listar_categorias():
         db_session.close()
 
 @app.route('/entradas', methods=['GET'])
-@jwt_required()
-@roles_required('admin')
+# @jwt_required()
+# @roles_required('admin')
 def listar_entradas():
     db_session = local_session()
     try:
@@ -643,8 +727,8 @@ def listar_entradas():
     finally:
         db_session.close()
 @app.route('/vendas_id/<id_mesa>', methods=['GET'])
-@jwt_required()
-@roles_required('admin')
+# @jwt_required()
+# @roles_required('admin')
 def listar_vendas_id(id_mesa):
     db_session = local_session()
     try:
@@ -665,8 +749,8 @@ def listar_vendas_id(id_mesa):
     finally:
         db_session.close()
 @app.route('/vendas', methods=['GET'])
-@jwt_required()
-@roles_required('admin')
+# @jwt_required()
+# @roles_required('admin')
 def listar_vendas():
     db_session = local_session()
     try:
@@ -684,8 +768,8 @@ def listar_vendas():
     finally:
         db_session.close()
 @app.route('/pessoas', methods=['GET'])
-@jwt_required()
-@roles_required('admin')
+# @jwt_required()
+# @roles_required('admin')
 def listar_pessoas():
     db_session = local_session()
     try:
@@ -706,8 +790,8 @@ def listar_pessoas():
         db_session.close()
 
 @app.route('/get_insumo_id/<id_insumo>', methods=['GET'])
-@jwt_required()
-@roles_required('cozinha', 'admin')
+# @jwt_required()
+# @roles_required('cozinha', 'admin')
 def get_insumo_id(id_insumo):
     db_session = local_session()
     try:
@@ -735,7 +819,7 @@ def get_insumo_id(id_insumo):
 
 # EDITAR (PUT)
 @app.route('/lanches/<id_lanche>', methods=['PUT'])
-@jwt_required()
+# @jwt_required()
 def editar_lanche(id_lanche):
     db_session = local_session()
     try:
@@ -777,7 +861,7 @@ def editar_lanche(id_lanche):
         db_session.close()
 
 @app.route('/insumos/<id_insumo>', methods=['PUT'])
-@jwt_required()
+# @jwt_required()
 def editar_insumo(id_insumo):
     db_session = local_session()
     try:
@@ -818,7 +902,7 @@ def editar_insumo(id_insumo):
         db_session.close()
 
 @app.route('/categorias/<id_categoria>', methods=['PUT'])
-@jwt_required()
+# @jwt_required()
 def editar_categoria(id_categoria):
     db_session = local_session()
     try:
@@ -863,7 +947,7 @@ def editar_categoria(id_categoria):
         db_session.close()
 
 @app.route('/pessoas/<id_pessoa>', methods=['PUT'])
-@jwt_required()
+# @jwt_required()
 def editar_pessoa(id_pessoa):
     db_session = local_session()
     try:
@@ -909,7 +993,7 @@ def editar_pessoa(id_pessoa):
         db_session.close()
 
 @app.route("/lanche_insumo", methods=["DELETE"])
-@jwt_required()
+# @jwt_required()
 def deletar_lanche_insumo():
     dados = request.json
 
