@@ -77,8 +77,8 @@ def login():
     finally:
         db_session.close()
 @app.route('/cadastro_pessoas_login', methods=['POST'])
-@jwt_required()
-@roles_required('admin')
+# @jwt_required()
+# @roles_required('admin')
 def cadastro():
     dados = request.get_json()
     nome_pessoa = dados['nome_pessoa']
