@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 from datetime import datetime
 from models import *
-from flask_jwt_extended import create_access_token, jwt_required, JWTManager, get_jwt_identity
+from flask_jwt_extended import create_access_token, jwt_required, JWTManager, get_jwt_identity, get_jwt
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user, current_user
@@ -30,22 +30,37 @@ jwt = JWTManager(app)
 #         finally:
 #             db.close()
 #     return wrapper
+
+# role do luischat
 def roles_required(*roles):
     def wrapper(fn):
         @wraps(fn)
-        def decorated(*args, **kwargs):
-            current_user = get_jwt_identity()
-            db = local_session()
-            try:
-                sql = select(Pessoa).where(Pessoa.email == current_user)
-                user = db.execute(sql).scalar()
-                if user and user.papel in roles:
-                    return fn(*args, **kwargs)
-                return jsonify(msg="Acesso negado: privilégios insuficientes"), 403
-            finally:
-                db.close()
-        return decorated
+        def decorator(*args, **kwargs):
+            claims = get_jwt()
+            role = claims.get('role')
+            if claims.get("role") not in roles:
+                print(claims)
+                return jsonify({"msg": role}), 403
+            return fn(*args, **kwargs)
+        return decorator
     return wrapper
+# roles do dener
+# def roles_required(*roles):
+#     def wrapper(fn):
+#         @wraps(fn)
+#         def decorated(*args, **kwargs):
+#             current_user = get_jwt_identity()
+#             db = local_session()
+#             try:
+#                 sql = select(Pessoa).where(Pessoa.email == current_user)
+#                 user = db.execute(sql).scalar()
+#                 if user and user.papel in roles:
+#                     return fn(*args, **kwargs)
+#                 return jsonify(msg="Acesso negado: privilégios insuficientes"), 403
+#             finally:
+#                 db.close()
+#         return decorated
+#     return wrapper
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -64,9 +79,10 @@ def login():
         sql = select(Pessoa).where(Pessoa.email == email)
         user = db_session.execute(sql).scalar()
 
+
         # Verifica se o usuário existe e se a senha está correta
         if user and user.check_password_hash(senha):
-            access_token = create_access_token(identity=email)  # Gera o token de acesso
+            access_token = create_access_token(identity=email,additional_claims={"role": user.papel})  # Gera o token de acesso
             papel = user.papel  # Obtém o papel do usuário
             nome = user.nome_pessoa  # Obtém o nome do usuário
             print(f"Login bem-sucedido: {nome}, Papel: {papel}")  # Diagnóstico
@@ -353,7 +369,7 @@ def cadastrar_lanche_insumo():
 
 @app.route('/vendas', methods=['POST'])
 @jwt_required()
-@roles_required('garcom', 'cozinha', 'admin')
+@roles_required('garcom', 'cozinha', 'admin', 'cliente')
 def cadastrar_venda():
     db_session = local_session()
     try:
@@ -684,8 +700,8 @@ def listar_vendas():
     finally:
         db_session.close()
 @app.route('/pessoas', methods=['GET'])
-@jwt_required()
-@roles_required('admin')
+# @jwt_required()
+# @roles_required('admin')
 def listar_pessoas():
     db_session = local_session()
     try:
