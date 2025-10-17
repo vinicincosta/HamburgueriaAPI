@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, Float, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, Float, ForeignKey, column
 from sqlalchemy.orm import sessionmaker, scoped_session, declarative_base
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -149,6 +149,29 @@ class Categoria(Base):
         }
         return var_categoria
 
+class Bebidas(Base):
+    __tablename__ = 'bebidas'
+    id_bebida = Column(Integer, primary_key=True)
+    nome_bebida = Column(String(20), nullable=False, index=True)
+    descricao = Column(String(20), nullable=False, index=True)
+    valor = Column(Float, nullable=False, index=True)
+    categoria = Column(Integer, ForeignKey('categorias.id_categoria'), nullable=False)
+    def __repr__(self):
+        return '<Bebida: {} {}>'.format(self.id_bebida, self.nome_bebida)
+    def save(self, db_session):
+        try:
+            db_session.add(self)
+            db_session.commit()
+        except:
+            db_session.rollback()
+            raise
+    def delete(self, db_session):
+        try:
+            db_session.delete(self)
+            db_session.commit()
+        except:
+            db_session.rollback()
+            raise
 class Venda(Base):
     __tablename__ = 'vendas'
     id_venda = Column(Integer, primary_key=True)
