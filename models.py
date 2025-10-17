@@ -51,6 +51,7 @@ class Insumo(Base):
     id_insumo = Column(Integer, primary_key=True)
     nome_insumo = Column(String(20), nullable=False, index=True)
     qtd_insumo = Column(Integer, default=0, nullable=False, index=True)
+    custo = Column(Float, nullable=False, index=True)
     categoria_id = Column(Integer, ForeignKey('categorias.id_categoria'), nullable=False)
 
     def __repr__(self):
@@ -78,6 +79,7 @@ class Insumo(Base):
             'nome_insumo': self.nome_insumo,
             'qtd_insumo': self.qtd_insumo,
             'categoria_id': self.categoria_id,
+            'custo': self.custo,
         }
         return var_insumo
 
