@@ -812,7 +812,7 @@ def get_insumo_id(id_insumo):
         })
     except Exception as e:
         return jsonify({
-            "error": "Valor inválido"
+            "error": "Valor inválidox"
         })
     finally:
         db_session.close()
