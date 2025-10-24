@@ -1,4 +1,3 @@
-from symtable import Class
 
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, Float, ForeignKey, column
 from sqlalchemy.orm import sessionmaker, scoped_session, declarative_base

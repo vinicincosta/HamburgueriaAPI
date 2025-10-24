@@ -1,5 +1,5 @@
 import json
-from logging import exception
+
 
 from flask import Flask, jsonify, render_template, request, redirect, url_for, flash
 from sqlalchemy import select
