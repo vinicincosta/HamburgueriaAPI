@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 from datetime import datetime
 from models import *
-from flask_jwt_extended import create_access_token, jwt_required, JWTManager, get_jwt_identity
+from flask_jwt_extended import create_access_token, jwt_required, JWTManager, get_jwt_identity, get_jwt
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user, current_user
@@ -396,6 +396,113 @@ def cadastrar_lanche_insumo():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# @app.route('/vendas', methods=['POST'])
+# # @jwt_required()
+# # @roles_required('garcom', 'cozinha', 'admin')
+# def cadastrar_venda():
+#     db_session = local_session()
+#     try:
+#         dados = request.get_json()
+#         campos = ["data_venda", "lanche_id", "pessoa_id", "qtd_lanche", "detalhamento"]
+#
+#         if not all(campo in dados for campo in campos):
+#             return jsonify({"error": "Campos obrigatórios não informados"}), 400
+#
+#         # Dados principais
+#         lanche_id = dados["lanche_id"]
+#         pessoa_id = dados["pessoa_id"]
+#         data_venda = dados["data_venda"]
+#         detalhamento = dados["detalhamento"]
+#         qtd_lanche = int(dados["qtd_lanche"])
+#         endereco = dados.get("endereco", None)
+#         forma_pagamento = dados.get("forma_pagamento", "Presencial")
+#
+#         # Campos específicos de mesa (podem ser nulos no caso de delivery)
+#         numero_mesa = dados.get("numero_mesa")
+#         nome_cliente = dados.get("nome_cliente")
+#
+#         # Observações (iguais para ambos os tipos de venda)
+#         observacoes = dados.get("observacoes", {"adicionar": [], "remover": []})
+#
+#         # Verificações
+#         lanche = db_session.query(Lanche).filter_by(id_lanche=lanche_id).first()
+#         pessoa = db_session.query(Pessoa).filter_by(id_pessoa=pessoa_id).first()
+#
+#         if not lanche:
+#             return jsonify({"error": "Lanche não encontrado"}), 404
+#         if not pessoa:
+#             return jsonify({"error": "Pessoa não encontrada"}), 404
+#
+#         # Receita base do lanche
+#         receita = db_session.query(Lanche_insumo).filter_by(lanche_id=lanche_id).all()
+#         if not receita:
+#             return jsonify({"error": "Esse lanche não tem receita cadastrada"}), 400
+#
+#         # Montar receita ajustada
+#         receita_final = {item.insumo_id: item.qtd_insumo for item in receita}
+#
+#         # Remover insumos
+#         for rem in observacoes.get("remover", []):
+#             if rem["insumo_id"] in receita_final:
+#                 receita_final[rem["insumo_id"]] = max(
+#                     0, receita_final[rem["insumo_id"]] - rem["qtd"] * 100
+#                 )
+#
+#         # Adicionar insumos
+#         for add in observacoes.get("adicionar", []):
+#             receita_final[add["insumo_id"]] = receita_final.get(add["insumo_id"], 0) + add["qtd"] * 100
+#
+#         # Verificar estoque
+#         for insumo_id, qtd in receita_final.items():
+#             insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
+#             if not insumo:
+#                 return jsonify({"error": f"Insumo ID {insumo_id} não encontrado"}), 404
+#             if insumo.qtd_insumo < qtd * qtd_lanche:
+#                 return jsonify({"error": f"Estoque insuficiente para: {insumo.nome_insumo}"}), 400
+#
+#         # Dar baixa nos insumos
+#         for insumo_id, qtd in receita_final.items():
+#             insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
+#             insumo.qtd_insumo -= qtd * qtd_lanche
+#             db_session.add(insumo)
+#
+#         # Converter chaves da receita para string antes de salvar
+#         receita_final_str_keys = {str(k): v for k, v in receita_final.items()}
+#
+#         # Registrar vendas
+#         vendas_registradas = []
+#         for _ in range(qtd_lanche):
+#             nova_venda = Venda(
+#                 data_venda=data_venda,
+#                 lanche_id=lanche_id,
+#                 pessoa_id=pessoa_id,
+#                 valor_venda=lanche.valor_lanche,
+#                 detalhamento=detalhamento,
+#                 status_venda=True,
+#                 endereco=endereco,
+#                 forma_pagamento=forma_pagamento,
+#                 numero_mesa=numero_mesa,
+#                 nome_cliente=nome_cliente,
+#                 ajustes_receita=json.dumps(receita_final_str_keys)
+#             )
+#             nova_venda.save(db_session)
+#             venda_dict = nova_venda.serialize()
+#             venda_dict["ajustes_receita"] = {int(k): v for k, v in receita_final_str_keys.items()}
+#             vendas_registradas.append(venda_dict)
+#
+#         return jsonify({
+#             "success": f"{qtd_lanche} venda(s) registrada(s) com sucesso",
+#             "vendas": vendas_registradas
+#         }), 201
+#
+#     except Exception as e:
+#         db_session.rollback()
+#         return jsonify({"error": str(e)}), 500
+#     finally:
+#         db_session.close()
+
+
+
 @app.route('/vendas', methods=['POST'])
 # @jwt_required()
 # @roles_required('garcom', 'cozinha', 'admin')
@@ -478,6 +585,7 @@ def cadastrar_venda():
             )
             nova_venda.save(db_session)
             venda_dict = nova_venda.serialize()
+
             # converter de volta para int no retorno
             venda_dict["ajustes_receita"] = {int(k): v for k, v in receita_final_str_keys.items()}
             vendas_registradas.append(venda_dict)
@@ -490,6 +598,219 @@ def cadastrar_venda():
     except Exception as e:
         db_session.rollback()
         return jsonify({"error": str(e)}), 500
+    finally:
+        db_session.close()
+
+
+
+
+# @app.route('/pedidos', methods=['POST'])
+# def cadastrar_pedido():
+#     db_session = local_session()
+#     try:
+#         dados = request.get_json()
+#         campos_obrigatorios = ["numero_mesa", "id_lanche"]
+#
+#         # Campos obrigatórios básicos
+#         if not all(campo in dados for campo in campos_obrigatorios):
+#             return jsonify({"error": "Campos obrigatórios não informados"}), 400
+#
+#         numero_mesa = dados["numero_mesa"]
+#         id_lanche = dados.get("id_lanche") # opcional
+#         id_bebida = dados.get("id_bebida")  # opcional
+#         qtd_lanche = int(dados.get("qtd_lanche", 1))
+#         data_pedido = dados["data_pedido"]
+#         id_pessoa = dados["id_pessoa"]
+#         detalhamento = dados["detalhamento"]
+#
+#         observacoes = dados.get("observacoes", {"adicionar": [], "remover": []})
+#
+#         # ===============================
+#         # Verificações de existência
+#         # ===============================
+#         lanche = db_session.query(Lanche).filter_by(id_lanche=id_lanche).first()
+#         if not lanche:
+#             return jsonify({"error": "Lanche não encontrado"}), 404
+#
+#         if id_bebida:
+#             bebida = db_session.query(Bebidas).filter_by(id_bebida=id_bebida).first()
+#             if not bebida:
+#                 return jsonify({"error": "Bebida não encontrada"}), 404
+#
+#         receita = db_session.query(Lanche_insumo).filter_by(lanche_id=id_lanche).all()
+#         if not receita:
+#             return jsonify({"error": "Esse lanche não tem receita cadastrada"}), 400
+#
+#         # Montar receita ajustada
+#         receita_final = {item.insumo_id: item.qtd_insumo for item in receita}
+#
+#         # Remover insumos
+#         for rem in observacoes.get("remover", []):
+#             if rem["insumo_id"] in receita_final:
+#                 receita_final[rem["insumo_id"]] = max(
+#                     0, receita_final[rem["insumo_id"]] - rem["qtd"] * 100
+#                 )
+#
+#         # Adicionar insumos extras
+#         for add in observacoes.get("adicionar", []):
+#             receita_final[add["insumo_id"]] = receita_final.get(add["insumo_id"], 0) + add["qtd"] * 100
+#
+#         # Verificar estoque
+#         for insumo_id, qtd in receita_final.items():
+#             insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
+#             if not insumo:
+#                 return jsonify({"error": f"Insumo ID {insumo_id} não encontrado"}), 404
+#             if insumo.qtd_insumo < qtd * qtd_lanche:
+#                 return jsonify({"error": f"Estoque insuficiente para: {insumo.nome_insumo}"}), 400
+#
+#         # Dar baixa nos insumos
+#         for insumo_id, qtd in receita_final.items():
+#             insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
+#             insumo.qtd_insumo -= qtd * qtd_lanche
+#             db_session.add(insumo)
+#
+#         # Converter chaves para string antes de salvar
+#         receita_final_str_keys = {str(k): v for k, v in receita_final.items()}
+#
+#
+#         # registrar pedidos
+#         pedidos_registrados = []
+#         for _ in range(qtd_lanche):
+#             novo_pedido = Pedido(
+#                 data_pedido=data_pedido,
+#                 id_lanche=id_lanche,
+#                 id_pessoa=id_pessoa,
+#                 detalhamento=detalhamento,
+#                 status=False,
+#                 status_fechado=False,
+#                 numero_mesa=numero_mesa,
+#                 ajustes_receita=json.dumps(receita_final_str_keys)
+#             )
+#             novo_pedido.save(db_session)
+#             venda_dict = novo_pedido.serialize()
+#
+#             # converter de volta para int no retorno
+#             venda_dict["ajustes_receita"] = {int(k): v for k, v in receita_final_str_keys.items()}
+#             pedidos_registrados.append(venda_dict)
+#
+#         db_session.commit()
+#
+#         return jsonify({
+#             "success": f"{qtd_lanche} pedido(s) registrado(s) com sucesso",
+#             "pedidos": pedidos_registrados
+#         }), 201
+#
+#     except Exception as e:
+#         db_session.rollback()
+#         return jsonify({"error": str(e)}), 500
+#
+#     finally:
+#         db_session.close()
+
+@app.route('/pedidos', methods=['POST'])
+def cadastrar_pedido():
+    db_session = local_session()
+    try:
+        dados = request.get_json()
+
+        # Campos obrigatórios
+        campos_obrigatorios = ["numero_mesa", "id_lanche", "id_pessoa"]
+        for campo in campos_obrigatorios:
+            if campo not in dados or dados[campo] in [None, ""]:
+                return jsonify({"error": f"Campo obrigatório ausente: {campo}"}), 400
+
+        numero_mesa = int(dados["numero_mesa"])
+        id_lanche = int(dados.get("id_lanche"))
+        id_bebida = dados.get("id_bebida")
+        qtd_lanche = int(dados.get("qtd_lanche", 1))
+        data_pedido = dados.get("data_pedido", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        id_pessoa = int(dados["id_pessoa"])
+        detalhamento = dados.get("detalhamento", "")
+        observacoes = dados.get("observacoes", {"adicionar": [], "remover": []})
+
+
+        #  Verificações de existência
+
+        lanche = db_session.query(Lanche).filter_by(id_lanche=id_lanche).first()
+        if not lanche:
+            return jsonify({"error": "Lanche não encontrado"}), 404
+
+        if id_bebida:
+            bebida = db_session.query(Bebidas).filter_by(id_bebida=id_bebida).first()
+            if not bebida:
+                return jsonify({"error": "Bebida não encontrada"}), 404
+
+        receita = db_session.query(Lanche_insumo).filter_by(lanche_id=id_lanche).all()
+        if not receita:
+            return jsonify({"error": "Esse lanche não tem receita cadastrada"}), 400
+
+
+        #  Montagem da receita ajustada
+        receita_final = {item.insumo_id: item.qtd_insumo for item in receita}
+
+        # Remover insumos
+        for rem in observacoes.get("remover", []):
+            if rem["insumo_id"] in receita_final:
+                receita_final[rem["insumo_id"]] = max(
+                    0, receita_final[rem["insumo_id"]] - rem["qtd"] * 100
+                )
+
+        # Adicionar insumos extras
+        for add in observacoes.get("adicionar", []):
+            receita_final[add["insumo_id"]] = receita_final.get(add["insumo_id"], 0) + add["qtd"] * 100
+
+
+        # Verificação de estoque
+
+        for insumo_id, qtd in receita_final.items():
+            insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
+            if not insumo:
+                return jsonify({"error": f"Insumo ID {insumo_id} não encontrado"}), 404
+            if insumo.qtd_insumo < qtd * qtd_lanche:
+                return jsonify({"error": f"Estoque insuficiente para: {insumo.nome_insumo}"}), 400
+
+        # Dar baixa no estoque
+        for insumo_id, qtd in receita_final.items():
+            insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
+            insumo.qtd_insumo -= qtd * qtd_lanche
+            db_session.add(insumo)
+
+        receita_final_str_keys = {str(k): v for k, v in receita_final.items()}
+
+
+        # Registro dos pedidos
+
+        pedidos_registrados = []
+        for _ in range(qtd_lanche):
+            novo_pedido = Pedido(
+                data_pedido=data_pedido,
+                numero_mesa=numero_mesa,
+                id_lanche=id_lanche,
+                id_bebida=id_bebida,
+                id_pessoa=id_pessoa,
+                detalhamento=detalhamento,
+                ajustes_receita=json.dumps(receita_final_str_keys),
+                status=False,
+                status_fechado=False
+            )
+            db_session.add(novo_pedido)
+            db_session.flush()  # Garante que o ID seja gerado antes do commit
+
+            venda_dict = novo_pedido.serialize()
+            venda_dict["ajustes_receita"] = {int(k): v for k, v in receita_final_str_keys.items()}
+            pedidos_registrados.append(venda_dict)
+
+        db_session.commit()
+
+        return jsonify({
+            "success": f"{qtd_lanche} pedido(s) registrado(s) com sucesso",
+            "pedidos": pedidos_registrados
+        }), 201
+
+    except Exception as e:
+        db_session.rollback()
+        return jsonify({"error": str(e)}), 500
+
     finally:
         db_session.close()
 
@@ -684,7 +1005,6 @@ def listar_receita_lanche(lanche_id):
     finally:
         db_session.close()
 
-
 @app.route('/categorias', methods=['GET'])
 # @jwt_required()
 # @roles_required('admin')
@@ -726,6 +1046,8 @@ def listar_entradas():
         return jsonify({"error": str(e)})
     finally:
         db_session.close()
+
+
 @app.route('/vendas_id/<id_mesa>', methods=['GET'])
 # @jwt_required()
 # @roles_required('admin')

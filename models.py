@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, Float, ForeignKey, column
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, Float, ForeignKey
 from sqlalchemy.orm import sessionmaker, scoped_session, declarative_base
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -149,29 +149,6 @@ class Categoria(Base):
         }
         return var_categoria
 
-class Bebidas(Base):
-    __tablename__ = 'bebidas'
-    id_bebida = Column(Integer, primary_key=True)
-    nome_bebida = Column(String(20), nullable=False, index=True)
-    descricao = Column(String(20), nullable=False, index=True)
-    valor = Column(Float, nullable=False, index=True)
-    categoria = Column(Integer, ForeignKey('categorias.id_categoria'), nullable=False)
-    def __repr__(self):
-        return '<Bebida: {} {}>'.format(self.id_bebida, self.nome_bebida)
-    def save(self, db_session):
-        try:
-            db_session.add(self)
-            db_session.commit()
-        except:
-            db_session.rollback()
-            raise
-    def delete(self, db_session):
-        try:
-            db_session.delete(self)
-            db_session.commit()
-        except:
-            db_session.rollback()
-            raise
 class Venda(Base):
     __tablename__ = 'vendas'
     id_venda = Column(Integer, primary_key=True)
@@ -221,6 +198,91 @@ class Venda(Base):
             "endereco": self.endereco,
         }
         return var_venda
+
+class Pedido(Base):
+    __tablename__ = 'pedidos'
+    id_pedido = Column(Integer, primary_key=True, autoincrement=True)
+    data_pedido = Column(String(10), nullable=False, index=True)
+    numero_mesa = Column(Integer, nullable=True,index=True)
+    id_lanche = Column(Integer, ForeignKey('lanches.id_lanche'), nullable=True)
+    id_bebida = Column(Integer, ForeignKey('bebidas.id_bebida'), nullable=True)
+    id_pessoa = Column(Integer, ForeignKey('pessoas.id_pessoa'), nullable=True)
+
+    detalhamento = Column(String(50), nullable=True, index=True)
+    ajustes_receita = Column(String(100), nullable=True, index=True)
+
+    status = Column(Boolean, nullable=True, index=True)
+    status_fechado = Column(Boolean, nullable=False, index=True)
+
+
+
+
+    def __repr__(self):
+        return 'Pedido: {}, {}, {}, {}'.format(self.id_pedido, self.numero_mesa, self.status_fechado, self.data_venda)
+
+    def save(self, db_session):
+        try:
+            db_session.add(self)
+            db_session.commit()
+        except:
+            db_session.rollback()
+            raise
+    def delete(self, db_session):
+        try:
+            db_session.delete(self)
+            db_session.commit()
+        except:
+            db_session.rollback()
+            raise
+    def serialize(self):
+        var_pedido = {
+            "id_pedido": self.id_pedido,
+            "numero_da_mesa": self.numero_mesa,
+            "id_lanche": self.id_lanche,
+            "id_bebida": self.id_bebida,
+            "id_pessoa": self.id_pessoa,
+            "detalhamento": self.detalhamento,
+            "ajustes_receita": self.ajustes_receita,
+            # status condição de pedido pronto
+            "status": self.status,
+            "status_pago": self.status_fechado,
+            "data_pedido": self.data_pedido,
+        }
+        return var_pedido
+
+
+class Bebidas(Base):
+    __tablename__ = 'bebidas'
+    id_bebida = Column(Integer, primary_key=True)
+    nome_bebida = Column(String(20), nullable=False, index=True)
+    descricao = Column(String(20), nullable=False, index=True)
+    valor = Column(Float, nullable=False, index=True)
+    categoria = Column(Integer, ForeignKey('categorias.id_categoria'), nullable=False)
+    def __repr__(self):
+        return '<Bebida: {} {}>'.format(self.id_bebida, self.nome_bebida)
+    def save(self, db_session):
+        try:
+            db_session.add(self)
+            db_session.commit()
+        except:
+            db_session.rollback()
+            raise
+    def delete(self, db_session):
+        try:
+            db_session.delete(self)
+            db_session.commit()
+        except:
+            db_session.rollback()
+            raise
+
+    def serialize(self):
+        return {
+            "id_bebida": self.id_bebida,
+            "nome_bebida": self.nome_bebida,
+            "descricao": self.descricao,
+            "valor": self.valor,
+            "categoria": self.categoria,
+        }
 
 class Entrada(Base):
     __tablename__ = 'entradas'
