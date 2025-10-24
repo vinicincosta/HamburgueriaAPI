@@ -459,6 +459,44 @@ def cadastrar_venda():
     finally:
         db_session.close()
 
+@app.route('/bebida', methods=['GET'])
+def listar_bebida():
+    db_session = local_session()
+    try:
+        bebidasSQL = db_session.execute(select(Bebidas)).scalars()
+        bebidas = []
+        for n in bebidasSQL:
+            bebidas.append(n.serializee())
+            return jsonify({'bebidas':bebidas}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)})
+    finally:
+        db_session.close()
+@app.route('/bebida', methods=['POST'])
+def cadastrar_bebida():
+    db_session = local_session()
+    try:
+        dados = request.json()
+        nome_bebida = dados["nome_bebida"]
+        descricao = dados["descricao"]
+        valor = dados["valor"]
+        categoria = dados["categoria"]
+
+        categoria = db_session.execute(select(Categoria).filter_by(nome_bebida=nome_bebida)).first()
+        if not categoria:
+            return jsonify({"error":"categoria não encontrado"}), 404
+        nova_bebida = Bebidas(
+            nome_bebida=nome_bebida,
+            descricao=descricao,
+            valor=valor,
+            categoria=categoria,
+        )
+        nova_bebida.save(db_session)
+        return jsonify({'bebidas':nova_bebida})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+    finally:
+        db_session.close()
 
 @app.route('/pedidos', methods=['POST'])
 def cadastrar_pedido():
@@ -529,7 +567,7 @@ def cadastrar_pedido():
                 id_lanche=id_lanche,
                 id_pessoa=id_usuario,
                 detalhamento=detalhamento,
-                qtd_bebidas=qtd_bebidas,
+                # qtd_bebidas=qtd_bebidas,
                 status=False,
                 status_fechado=False,
                 numero_mesa=numero_mesa,
@@ -559,7 +597,7 @@ def teste():
     try:
         claims = get_jwt()
         id_usuario = claims["id_usuario"]
-        return jsonify({'sucesso': id_usuario}), 200
+        return jsonify({'id_pessoa': id_usuario}), 200
     except Exception as e:
         return jsonify({"error": str(e)})
     finally:

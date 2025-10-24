@@ -37,7 +37,7 @@ class Lanche(Base):
             db_session.rollback()
             raise
 
-    def serialize(self):
+    def serializee(self):
         var_lanche = {
             'id_lanche': self.id_lanche,
             'nome_lanche': self.nome_lanche,
@@ -152,7 +152,7 @@ class Categoria(Base):
 
 class Bebidas(Base):
     __tablename__ = 'bebidas'
-    id_bebida = Column(Integer, primary_key=True)
+    id_bebida = Column(Integer, primary_key=True, autoincrement=True)
     nome_bebida = Column(String(20), nullable=False, index=True)
     descricao = Column(String(20), nullable=False, index=True)
     valor = Column(Float, nullable=False, index=True)
@@ -173,6 +173,16 @@ class Bebidas(Base):
         except:
             db_session.rollback()
             raise
+
+    def selialize(self):
+        var_bebida = {
+            'id_bebida': self.id_bebida,
+            'nome_bebida': self.nome_bebida,
+            'descricao': self.descricao,
+            'valor': self.valor,
+            'categoria': self.categoria,
+        }
+        return var_bebida
 class Venda(Base):
     __tablename__ = 'vendas'
     id_venda = Column(Integer, primary_key=True)
