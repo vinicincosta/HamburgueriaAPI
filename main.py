@@ -1,6 +1,6 @@
 import json
 
-from flask import Flask, jsonify, render_template, request, redirect, url_for, flash
+from flask import Flask, jsonify, request, redirect, url_for
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 from datetime import datetime
@@ -303,6 +303,13 @@ def cadastrar_entrada():
         return jsonify({"error": f"Erro ao salvar entrada: {str(e)}"}), 500
 
 
+@app.route("/bebidas", methods=["POST"])
+def cadastrar_bebida():
+    db_session = local_session()
+    try:
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 @app.route('/pedidos', methods=['POST'])
 def cadastrar_pedido():
     db_session = local_session()
