@@ -177,40 +177,6 @@ def update_insumo(id_insumo):
         db_session.close()
 
 # Cadastro (POST)
-@app.route('/usuarios', methods=['POST'])
-def cadastro_usuarios():
-    dados = request.get_json()
-    nome_pessoa = dados['nome_pessoa']
-    email = dados['email']
-    papel = dados.get('papel','cliente')
-    senha = dados['senha']
-    cpf = dados['cpf']
-    # salario = dados['salario']
-
-    if not nome_pessoa or not email or not senha:
-        return jsonify({"msg": "Nome de usuário, email e senha são obrigatórios"}), 400
-
-    banco = local_session()
-    try:
-        # Verificar se o usuário já existe
-        user_check = select(Pessoa).where(Pessoa.nome_pessoa == nome_pessoa)
-        usuario_existente = banco.execute(user_check).scalar()
-
-        if usuario_existente:
-            return jsonify({"msg": "Usuário já existe"}), 400
-
-        novo_usuario = Pessoa(nome_pessoa=nome_pessoa, email=email, papel=papel)
-        novo_usuario.set_senha_hash(senha)
-        banco.add(novo_usuario)
-        banco.commit()
-
-        user_id = novo_usuario.id_pessoa
-        return jsonify({"msg": "Usuário criado com sucesso", "user_id": user_id}), 201
-    except Exception as e:
-        banco.rollback()
-        return jsonify({"msg": f"Erro ao registrar usuário: {str(e)}"}), 500
-    finally:
-        banco.close()
 
 @app.route('/lanches', methods=['POST'])
 # @jwt_required()
