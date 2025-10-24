@@ -1,11 +1,12 @@
 import json
+from logging import exception
 
 from flask import Flask, jsonify, render_template, request, redirect, url_for, flash
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 from datetime import datetime
 from models import *
-from flask_jwt_extended import create_access_token, jwt_required, JWTManager, get_jwt_identity
+from flask_jwt_extended import create_access_token, jwt_required, JWTManager, get_jwt_identity, get_jwt
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user, current_user
@@ -52,9 +53,7 @@ def login():
     dados = request.get_json()
     email = dados.get('email')
     senha = dados.get('senha')
-
     db_session = local_session()
-
     try:
         # Verifica se email e senha foram fornecidos
         if not email or not senha:
@@ -66,7 +65,8 @@ def login():
 
         # Verifica se o usuário existe e se a senha está correta
         if user and user.check_password_hash(senha):
-            access_token = create_access_token(identity=email)  # Gera o token de acesso
+            adicional = {"id_usuario": user.id_pessoa}
+            access_token = create_access_token(identity=email, additional_claims=adicional)  # Gera o token de acesso
             papel = user.papel  # Obtém o papel do usuário
             nome = user.nome_pessoa  # Obtém o nome do usuário
             print(f"Login bem-sucedido: {nome}, Papel: {papel}")  # Diagnóstico
@@ -494,6 +494,110 @@ def cadastrar_venda():
         db_session.close()
 
 
+@app.route('/pedidos', methods=['POST'])
+def cadastrar_pedido():
+    db_session = local_session()
+    try:
+        dados = request.get_json()
+        campos = ["numero_mesa", "id_lanche", "id_bebida"]
+
+        if not all(campo in dados for campo in campos):
+            return jsonify({"error": "Campos obrigatórios não informados"}), 400
+        numero_mesa = dados["numero_mesa"]
+        id_lanche = dados["id_lanche"]
+        id_bebida = dados["id_bebida"]
+        qtd_bebidas = int(dados["qtd_bebidas"])
+        qtd_lanche = int(dados["qtd_lanche"])
+        hora_do_pedido = str(datetime.now())
+        claims = get_jwt()
+        id_usuario = claims["id_usuario"]
+        detalhamento = claims["detalhamento"]
+
+        observacoes = dados.get("observacoes", {"adicionar": [], "remover": []})
+
+        lanche = db_session.query(Lanche).filter_by(id_lanche=id_lanche).first()
+        bebida = db_session.execute(select(Bebidas).filter_by(id_bebida=id_bebida)).first()
+        if not lanche:
+            return jsonify({"error": "Lanche não encontrado"}), 404
+        if not bebida:
+            return jsonify({"error":"lanche não encontrado"}), 404
+        receita = db_session.query(Lanche_insumo).filter_by(lanche_id=id_lanche).all()
+        if not receita:
+            return jsonify({"error": "Esse lanche não tem receita cadastrada"}), 400
+
+        # Montar receita ajustada
+        receita_final = {item.insumo_id: item.qtd_insumo for item in receita}
+
+        # Remover insumos
+        for rem in observacoes.get("remover", []):
+            if rem["insumo_id"] in receita_final:
+                receita_final[rem["insumo_id"]] = max(
+                    0, receita_final[rem["insumo_id"]] - rem["qtd"] * 100
+                )
+
+        # Adicionar insumos extras
+        for add in observacoes.get("adicionar", []):
+            receita_final[add["insumo_id"]] = receita_final.get(add["insumo_id"], 0) + add["qtd"] * 100
+
+        # Verificar estoque
+        for insumo_id, qtd in receita_final.items():
+            insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
+            if not insumo:
+                return jsonify({"error": f"Insumo ID {insumo_id} não encontrado"}), 404
+            if insumo.qtd_insumo < qtd * qtd_lanche:
+                return jsonify({"error": f"Estoque insuficiente para: {insumo.nome_insumo}"}), 400
+
+        # Dar baixa nos insumos
+        for insumo_id, qtd in receita_final.items():
+            insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
+            insumo.qtd_insumo -= qtd * qtd_lanche
+            db_session.add(insumo)
+
+        # Converter chaves para string antes de salvar
+        receita_final_str_keys = {str(k): v for k, v in receita_final.items()}
+        pedido_registrados = []
+        # vendas_registradas = []
+        for _ in range(qtd_lanche):
+            nova_venda = Pedido(
+                data_venda=hora_do_pedido,
+                id_lanche=id_lanche,
+                id_pessoa=id_usuario,
+                detalhamento=detalhamento,
+                qtd_bebidas=qtd_bebidas,
+                status=False,
+                status_fechado=False,
+                numero_mesa=numero_mesa,
+                ajustes_receita=json.dumps(receita_final_str_keys)
+            )
+            nova_venda.save(db_session)
+            venda_dict = nova_venda.serialize()
+            # converter de volta para int no retorno
+            venda_dict["ajustes_receita"] = {int(k): v for k, v in receita_final_str_keys.items()}
+            pedido_registrados.append(venda_dict)
+
+        return jsonify({
+            "success": f"{qtd_lanche} vendas registradas com sucesso",
+            "vendas": pedido_registrados
+        }), 201
+
+        # var = Pedido(numero_mesa=numero_mesa, id_lanche=id_lanche, id_bebida=id_bebida,id_pessoa=id_usuario,data_venda=hora_do_pedido)
+    except Exception as e:
+        db_session.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db_session.close()
+@app.route('/teste', methods=['GET'])
+@jwt_required()
+def teste():
+    db_session = local_session()
+    try:
+        claims = get_jwt()
+        id_usuario = claims["id_usuario"]
+        return jsonify({'sucesso': id_usuario}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)})
+    finally:
+        db_session.close()
 @app.route('/categorias', methods=['POST'])
 # @jwt_required()
 # @roles_required('admin')

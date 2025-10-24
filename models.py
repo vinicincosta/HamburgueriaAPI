@@ -1,3 +1,5 @@
+from symtable import Class
+
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, Float, ForeignKey, column
 from sqlalchemy.orm import sessionmaker, scoped_session, declarative_base
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -178,15 +180,15 @@ class Venda(Base):
     data_venda = Column(String(10), nullable=False, index=True)
     valor_venda = Column(Float, nullable=False, index=True)
     status_venda = Column(Boolean, default=True, index=True)
-    detalhamento = Column(String(50), nullable=False, index=True)
-    ajustes_receita = Column(String(100), nullable=False, index=True)
+    # detalhamento = Column(String(50), nullable=False, index=True)
+    # ajustes_receita = Column(String(100), nullable=False, index=True)
     endereco = Column(String, nullable=False)
     forma_pagamento = Column(String, nullable=False)
 
     # relacionamento com Lanche
     lanche_id = Column(Integer, ForeignKey('lanches.id_lanche'), nullable=False)
     # relacionamento com Pessoa
-    pessoa_id = Column(Integer, ForeignKey('pessoas.id_pessoa'), nullable=False)
+    pessoa_id = Column(Integer, ForeignKey('pessoas.id_pessoa'), nullable=False) # colocar True
 
     def __repr__(self):
         return '<Venda: {} {}>'.format(self.id_venda, self.data_venda)
@@ -213,8 +215,8 @@ class Venda(Base):
             "data_venda": self.data_venda,
             "valor_venda": self.valor_venda,
             "status_venda": self.status_venda,
-            "detalhamento": self.detalhamento,
-            "ajustes_receita": self.ajustes_receita,
+            # "detalhamento": self.detalhamento,
+            # "ajustes_receita": self.ajustes_receita,
             "lanche_id": self.lanche_id,
             "pessoa_id": self.pessoa_id,
             "forma_pagamento": self.forma_pagamento,
@@ -262,6 +264,56 @@ class Entrada(Base):
             'valor_entrada': self.valor_entrada,
             'insumo_id': self.insumo_id
         }
+class Pedido(Base):
+    __tablename__ = 'pedidos'
+    id_pedido = Column(Integer, primary_key=True, autoincrement=True)
+    numero_mesa = Column(Integer, nullable=True,index=True)
+    id_lanche = Column(Integer, ForeignKey('lanches.id_lanche'), nullable=True)
+    id_bebida = Column(Integer, ForeignKey('bebidas.id_bebida'), nullable=True)
+    # qtd_bebidas = Column(Integer, nullable=True, index=True)
+    id_pessoa = Column(Integer, ForeignKey('pessoas.id_pessoa'), nullable=True)
+    detalhamento = Column(String(50), nullable=True, index=True)
+    ajustes_receita = Column(String(100), nullable=True, index=True)
+    # se o pedido está pronto
+    status = Column(Boolean, nullable=True, index=True)
+    status_fechado = Column(Boolean, nullable=False, index=True)
+    data_venda = Column(String, nullable=False, index=True)
+
+
+
+    def __repr__(self):
+        return 'Pedido: {}, {}, {}, {}'.format(self.id_pedido, self.numero_mesa, self.status_fechado, self.data_venda)
+
+    def save(self, db_session):
+        try:
+            db_session.add(self)
+            db_session.commit()
+        except:
+            db_session.rollback()
+            raise
+    def delete(self, db_session):
+        try:
+            db_session.delete(self)
+            db_session.commit()
+        except:
+            db_session.rollback()
+            raise
+    def serialize(self):
+        var_pedido = {
+            "id_pedido": self.id_pedido,
+            "numero_da_mesa": self.numero_mesa,
+            "id_lanche": self.id_lanche,
+            "id_bebida": self.id_bebida,
+            "id_pessoa": self.id_pessoa,
+            "detalhamento": self.detalhamento,
+            "ajustes_receita": self.ajustes_receita,
+            # status condição de pedido pronto
+            "status": self.status,
+            "status_pago": self.status_fechado,
+            "data_venda": self.data_venda,
+            "qtd_bebidas": self.qtd_bebidas
+        }
+        return var_pedido
 
 class Pessoa(Base):
     __tablename__ = 'pessoas'
@@ -313,6 +365,8 @@ class Pessoa(Base):
 
         }
         return var_pessoa
+
+
 
 def init_db():
     Base.metadata.create_all(bind=engine)
