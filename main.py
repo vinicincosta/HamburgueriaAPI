@@ -4,6 +4,9 @@ from flask import Flask, jsonify, request, redirect, url_for
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 from datetime import datetime
+
+from werkzeug.exceptions import BadRequest
+
 from models import *
 from flask_jwt_extended import create_access_token, jwt_required, JWTManager, get_jwt_identity
 from functools import wraps
@@ -249,27 +252,36 @@ def cadastrar_lanche():
     finally:
         db_session.close()
 
+
+
 @app.route("/entradas", methods=["POST"])
 # @jwt_required()
 # @roles_required('admin')
 def cadastrar_entrada():
-    dados = request.json
-
-    # Campos obrigatórios
-    campos_obrigatorios = ["insumo_id", "qtd_entrada", "data_entrada", "nota_fiscal", "valor_entrada"]
-    if not all(campo in dados for campo in campos_obrigatorios):
-        return jsonify({"error": "Campos obrigatórios ausentes"}), 400
-
-    if any(dados[campo] == "" for campo in campos_obrigatorios):
-        return jsonify({"error": "Preencha todos os campos"}), 400
-
-    # Verificar se o insumo existe
-    insumo = local_session.query(Insumo).filter_by(id_insumo=dados["insumo_id"]).first()
-    if not insumo:
-        return jsonify({"error": "Insumo não encontrado"}), 404
-
-    # Validações numéricas
     try:
+        dados = request.get_json()
+
+        # Campos obrigatórios
+        campos_obrigatorios = ["qtd_entrada", "data_entrada", "nota_fiscal", "valor_entrada"]
+        if not all(campo in dados for campo in campos_obrigatorios):
+            return jsonify({"error": "Campos obrigatórios ausentes"}), 400
+
+        if any(dados[campo] == "" for campo in campos_obrigatorios):
+            return jsonify({"error": "Preencha todos os campos"}), 400
+        if 'insumo_id' in dados:
+            # Verificar se o insumo existe
+            insumo = local_session.query(Insumo).filter_by(id_insumo=dados["insumo_id"]).first()
+            if not insumo:
+                return jsonify({"error": "Não encontrado"}), 400
+
+        elif 'bebida_id' in dados:
+            bebida = local_session.query(Bebida).filter_by(id_bebida=dados["bebida_id"]).first()
+            if not bebida:
+                return jsonify({"error": "Não encontrado"}), 400
+        else:
+            return jsonify({"error": "Não encontrado"}), 400
+    # Validações numéricas
+
         qtd = int(dados["qtd_entrada"])
         valor = float(dados["valor_entrada"])
     except ValueError:
@@ -307,7 +319,21 @@ def cadastrar_entrada():
 def cadastrar_bebida():
     db_session = local_session()
     try:
+        dados = request.json()
+        campos_obrigatorios = ["nome_bebida", "valor", "id_categoria"]
+        if not all(campo in dados for campo in campos_obrigatorios):
+            return jsonify({"error": "Campos obrigatórios ausentes"}), 400
 
+        if any(dados[campo] == "" for campo in campos_obrigatorios):
+            return jsonify({"error": "Preencha todos os campos"}), 400
+
+        nova_bebida = Bebida(
+            nome_bebida=dados["nome_bebida"],
+            descricao=dados["descricao"],
+            categoria=dados["id_categoria"],
+            valor=dados["valor"],
+        )
+        nova_bebida.save(db_session)
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 @app.route('/pedidos', methods=['POST'])
@@ -317,7 +343,7 @@ def cadastrar_pedido():
         dados = request.get_json()
 
         #  Campos obrigatórios
-        campos_obrigatorios = ["numero_mesa", "id_lanche", "id_pessoa"]
+        campos_obrigatorios = ["numero_mesa", "id_pessoa"]
         for campo in campos_obrigatorios:
             if campo not in dados or dados[campo] in [None, ""]:
                 return jsonify({"error": f"Campo obrigatório ausente: {campo}"}), 400
@@ -339,7 +365,7 @@ def cadastrar_pedido():
             return jsonify({"error": "Lanche não encontrado"}), 404
 
         if id_bebida:
-            bebida = db_session.query(Bebidas).filter_by(id_bebida=id_bebida).first()
+            bebida = db_session.query(Bebida).filter_by(id_bebida=id_bebida).first()
             if not bebida:
                 return jsonify({"error": "Bebida não encontrada"}), 404
 

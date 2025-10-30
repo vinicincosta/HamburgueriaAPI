@@ -251,12 +251,13 @@ class Pedido(Base):
         return var_pedido
 
 
-class Bebidas(Base):
+class Bebida(Base):
     __tablename__ = 'bebidas'
     id_bebida = Column(Integer, primary_key=True)
     nome_bebida = Column(String(20), nullable=False, index=True)
     descricao = Column(String(20), nullable=False, index=True)
     valor = Column(Float, nullable=False, index=True)
+    quantidade = Column(Integer, nullable=False, index=True)
     categoria = Column(Integer, ForeignKey('categorias.id_categoria'), nullable=False)
     def __repr__(self):
         return '<Bebida: {} {}>'.format(self.id_bebida, self.nome_bebida)
@@ -281,6 +282,7 @@ class Bebidas(Base):
             "nome_bebida": self.nome_bebida,
             "descricao": self.descricao,
             "valor": self.valor,
+            "quantidade": self.quantidade,
             "categoria": self.categoria,
         }
 
@@ -294,8 +296,8 @@ class Entrada(Base):
 
 
     # relacionamento com Insumo
-    insumo_id = Column(Integer, ForeignKey('insumos.id_insumo'), nullable=False)
-
+    insumo_id = Column(Integer, ForeignKey('insumos.id_insumo'), nullable=True)
+    bebida_id = Column(Integer, ForeignKey('bebidas.id_bebida'), nullable=True)
     def __repr__(self):
         return f'<Entrada: {self.id_entrada} {self.data_entrada}>'
 
@@ -322,7 +324,8 @@ class Entrada(Base):
             'data_entrada': self.data_entrada,
             'qtd_entrada': self.qtd_entrada,
             'valor_entrada': self.valor_entrada,
-            'insumo_id': self.insumo_id
+            'insumo_id': self.insumo_id,
+            'bebida_id': self.bebida_id,
         }
 
 class Pessoa(Base):
