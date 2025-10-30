@@ -671,6 +671,12 @@ def cadastrar_categoria():
         db_session.close()
 
 # LISTAR (GET)
+
+@app.route('/pedidos', methods=['GET'])
+def pedidos():
+    db_session = local_session()
+    pedidos = db_session.query(Pedido).all()
+
 @app.route('/vendas/receitas', methods=['GET'])
 # @jwt_required()
 # @roles_required('cozinha', 'admin')
