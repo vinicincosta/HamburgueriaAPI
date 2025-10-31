@@ -346,6 +346,7 @@ def cadastrar_bebida():
         nova_bebida.save(db_session)
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+    
 @app.route('/pedidos', methods=['POST'])
 def cadastrar_pedido():
     db_session = local_session()
@@ -359,8 +360,8 @@ def cadastrar_pedido():
                 return jsonify({"error": f"Campo obrigatório ausente: {campo}"}), 400
 
         numero_mesa = int(dados["numero_mesa"])
-        id_lanche = int(dados.get("id_lanche"))
-        id_bebida = dados.get("id_bebida")
+        id_lanche = int(dados.get("id_lanche", None))
+        id_bebida = dados.get("id_bebida", None)
         qtd_lanche = int(dados.get("qtd_lanche", 1))
         data_pedido = dados.get("data_pedido", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         id_pessoa = int(dados["id_pessoa"])
@@ -369,15 +370,16 @@ def cadastrar_pedido():
 
 
         #  Verificações de existência
-
-        lanche = db_session.query(Lanche).filter_by(id_lanche=id_lanche).first()
-        if not lanche:
-            return jsonify({"error": "Lanche não encontrado"}), 404
-
-        if id_bebida:
-            bebida = db_session.query(Bebida).filter_by(id_bebida=id_bebida).first()
-            if not bebida:
-                return jsonify({"error": "Bebida não encontrada"}), 404
+        if id_lanche is not None:
+            lanche = db_session.query(Lanche).filter_by(id_lanche=id_lanche).first()
+            if not lanche:
+                return jsonify({"error": "Lanche não encontrado"}), 404
+            
+        if id_bebida is not None:
+            if id_bebida:
+                bebida = db_session.query(Bebida).filter_by(id_bebida=id_bebida).first()
+                if not bebida:
+                    return jsonify({"error": "Bebida não encontrada"}), 404
 
         receita = db_session.query(Lanche_insumo).filter_by(lanche_id=id_lanche).all()
         if not receita:
@@ -684,8 +686,16 @@ def cadastrar_categoria():
 
 @app.route('/pedidos', methods=['GET'])
 def pedidos():
-    db_session = local_session()
-    pedidos = db_session.query(Pedido).all()
+    try:
+        db_session = local_session()
+        pedidos = db_session.query(Pedido).all()
+        resultado = []
+        for p in pedidos:
+            resultado.append(p.serialize())
+        return jsonify({"pedidos":resultado}), 200
+
+    except Exception as e:
+        return jsonify({"error":f"{e}"}), 400
 
 @app.route('/vendas/receitas', methods=['GET'])
 # @jwt_required()
@@ -977,6 +987,33 @@ def get_insumo_id(id_insumo):
         db_session.close()
 
 # EDITAR (PUT)
+
+@app.route('/pedidos/mesa<numero_mesa>', methods=['PUT'])
+def editar_pedidos_numero_mesa(numero_mesa): # Função para fechar a conta/ mudar a mesa
+    try:
+        db_session = local_session()
+        dados = request.get_json()
+        pedidos = db_session.execute(select(Pedido).filter_by(numero_mesa=int(numero_mesa))).scalars()
+        resultado = []
+        for p in pedidos:
+            resultado.append(p.serialize())
+            
+    except Exception as e:
+        return jsonify({'error':f'{e}'})
+    
+@app.route('/pedidos/<id_pedido>', methods=['PUT'])
+def editar_pedido(id_pedido):
+    try:
+        db_session = local_session()
+        dados = request.get_json()
+        pedido = db_session.execute(select(Pedido).filter_by(id_pedido=int(id_pedido))).scalar()
+        if 'status' in dados:
+            pedido.status = dados['status']
+        if 'status_fechado' in dados:
+            pedido.status_fechado = dados['status_fechado']
+    except Exception as e:
+        return jsonify({"error":f'{e}'})
+
 @app.route('/lanches/<id_lanche>', methods=['PUT'])
 # @jwt_required()
 def editar_lanche(id_lanche):
