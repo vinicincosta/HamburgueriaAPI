@@ -1016,31 +1016,125 @@ def get_insumo_id(id_insumo):
 
 # EDITAR (PUT)
 
-@app.route('/pedidos/mesa<numero_mesa>', methods=['PUT'])
-def editar_pedidos_numero_mesa(numero_mesa): # Função para fechar a conta
-    try:
-        db_session = local_session()
-        dados = request.get_json()
-        pedidos_ = db_session.execute(select(Pedido).filter_by(numero_mesa=int(numero_mesa))).scalars()
-        resultado = []
-        for p in pedidos_:
-            resultado.append(p.serialize())
-        return jsonify({"pedidos": resultado})
-    except Exception as e:
-        return jsonify({'error':f'{e}'})
+@app.route('/pedidos/mesa', methods=['PUT'])
+def editar_pedidos_numero_mesa(): # Função para fechar a conta
+    # try:
+    #     db_session = local_session()
+    #     dados = request.get_json()
+    #     pedidos_ = db_session.execute(select(Pedido).filter_by(numero_mesa=int(dados['numero_mesa']), status_fechado=False)).scalars()
+    #     resultado = []
+    #     for p in pedidos_:
+    #         resultado.append(p.serialize())
+    #         itens_total = []
+    #     for pedido in resultado:
+        # return jsonify({"pedidos": resultado})
+    # except Exception as e:
+    #     return jsonify({'error':f'{e}'})
     
 @app.route('/pedidos/<id_pedido>', methods=['PUT'])
 def editar_pedido(id_pedido):
+    # try:
+    #     db_session = local_session()
+    #     dados = request.get_json()
+    #     pedido = db_session.execute(select(Pedido).filter_by(id_pedido=int(id_pedido))).scalar()
+    #     if 'status' in dados:
+    #         pedido.status = dados['status']
+    #     if 'status_fechado' in dados:
+    #         pedido.status_fechado = dados['status_fechado']
+    # except Exception as e:
+    #     return jsonify({"error":f'{e}'})
+    db_session = local_session()
     try:
-        db_session = local_session()
         dados = request.get_json()
-        pedido = db_session.execute(select(Pedido).filter_by(id_pedido=int(id_pedido))).scalar()
-        if 'status' in dados:
-            pedido.status = dados['status']
-        if 'status_fechado' in dados:
-            pedido.status_fechado = dados['status_fechado']
+        campos = ["data_venda", "lanche_id", "pessoa_id", "qtd_lanche", "detalhamento"]
+
+        if not all(campo in dados for campo in campos):
+            return jsonify({"error": "Campos obrigatórios não informados"}), 400
+
+        lanche_id = dados["lanche_id"]
+        pessoa_id = dados["pessoa_id"]
+        data_venda = dados["data_venda"]
+        detalhamento = dados["detalhamento"]
+        qtd_lanche = int(dados["qtd_lanche"])
+        endereco = dados['endereco']
+        forma_pagamento = dados['forma_pagamento']
+
+        observacoes = dados.get("observacoes", {"adicionar": [], "remover": []})
+
+        lanche = db_session.query(Lanche).filter_by(id_lanche=lanche_id).first()
+        pessoa = db_session.query(Pessoa).filter_by(id_pessoa=pessoa_id).first()
+
+        if not lanche:
+            return jsonify({"error": "Lanche não encontrado"}), 404
+        if not pessoa:
+            return jsonify({"error": "Pessoa não encontrada"}), 404
+
+        # Receita base do lanche
+        receita = db_session.query(Lanche_insumo).filter_by(lanche_id=lanche_id).all()
+        if not receita:
+            return jsonify({"error": "Esse lanche não tem receita cadastrada"}), 400
+
+        # Montar receita ajustada
+        receita_final = {item.insumo_id: item.qtd_insumo for item in receita}
+
+        # Remover insumos
+        for rem in observacoes.get("remover", []):
+            if rem["insumo_id"] in receita_final:
+                receita_final[rem["insumo_id"]] = max(
+                    0, receita_final[rem["insumo_id"]] - rem["qtd"] * 100
+                )
+
+        # Adicionar insumos extras
+        for add in observacoes.get("adicionar", []):
+            receita_final[add["insumo_id"]] = receita_final.get(add["insumo_id"], 0) + add["qtd"] * 100
+
+        # Verificar estoque
+        for insumo_id, qtd in receita_final.items():
+            insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
+            if not insumo:
+                return jsonify({"error": f"Insumo ID {insumo_id} não encontrado"}), 404
+            if insumo.qtd_insumo < qtd * qtd_lanche:
+                return jsonify({"error": f"Estoque insuficiente para: {insumo.nome_insumo}"}), 400
+
+        # Dar baixa nos insumos
+        for insumo_id, qtd in receita_final.items():
+            insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
+            insumo.qtd_insumo -= qtd * qtd_lanche
+            db_session.add(insumo)
+
+        # Converter chaves para string antes de salvar
+        receita_final_str_keys = {str(k): v for k, v in receita_final.items()}
+
+        # Registrar vendas
+        vendas_registradas = []
+        for _ in range(qtd_lanche):
+            nova_venda = Venda(
+                data_venda=data_venda,
+                lanche_id=lanche_id,
+                pessoa_id=pessoa_id,
+                valor_venda=lanche.valor_lanche,
+                detalhamento=detalhamento,
+                status_venda=True,
+                endereco=endereco,
+                forma_pagamento=forma_pagamento,
+                ajustes_receita=json.dumps(receita_final_str_keys)
+            )
+            nova_venda.save(db_session)
+            venda_dict = nova_venda.serialize()
+            # converter de volta para int no retorno
+            venda_dict["ajustes_receita"] = {int(k): v for k, v in receita_final_str_keys.items()}
+            vendas_registradas.append(venda_dict)
+
+        return jsonify({
+            "success": f"{qtd_lanche} vendas registradas com sucesso",
+            "vendas": vendas_registradas
+        }), 201
+
     except Exception as e:
-        return jsonify({"error":f'{e}'})
+        db_session.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db_session.close()
 
 @app.route('/lanches/<id_lanche>', methods=['PUT'])
 # @jwt_required()
