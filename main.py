@@ -11,7 +11,7 @@ from models import *
 from flask_jwt_extended import create_access_token, jwt_required, JWTManager, get_jwt_identity
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_login import LoginManager, current_user, login_required, login_user, logout_user, current_user
+# from flask_login import LoginManager, current_user, login_required, login_user, logout_user, current_user
 app = Flask(__name__)
 app.config['JWT_SECRET_KEY'] = "03050710"
 jwt = JWTManager(app)
@@ -271,11 +271,14 @@ def cadastrar_entrada():
 
             # Validações numéricas
 
-            qtd = int(dados["qtd_entrada"])
-            valor = float(dados["valor_entrada"])
+        qtd = int(dados["qtd_entrada"])
+        valor = float(dados["valor_entrada"])
 
-            if qtd <= 0 or valor <= 0:
-                return jsonify({"error": "Quantidade e valor devem ser maiores que zero"}), 400
+        insumo_id = ''
+        bebida_id = ''
+
+        if qtd <= 0 or valor <= 0:
+            return jsonify({"error": "Quantidade e valor devem ser maiores que zero"}), 400
 
         if 'insumo_id' in dados and 'bebida_id' in dados:
             return jsonify({"error":"Insira apenas o ID de um item"}), 400
@@ -284,6 +287,8 @@ def cadastrar_entrada():
             insumo = local_session.query(Insumo).filter_by(id_insumo=dados["insumo_id"]).first()
             if not insumo:
                 return jsonify({"error": "Não encontrado"}), 400
+            
+            insumo_id = dados['insumo_id']
             # Atualiza o estoque do insumo
             insumo.qtd_insumo += qtd
 
@@ -291,10 +296,10 @@ def cadastrar_entrada():
             bebida = local_session.query(Bebida).filter_by(id_bebida=dados["bebida_id"]).first()
             if not bebida:
                 return jsonify({"error": "Não encontrado"}), 400
+            bebida_id = dados['bebida_id']
             bebida.quantidade += qtd
         else:
             return jsonify({"error": "Não encontrado"}), 400
-
 
 
         # Cria a entrada
@@ -303,7 +308,8 @@ def cadastrar_entrada():
             data_entrada=dados["data_entrada"],
             qtd_entrada=qtd,
             valor_entrada=valor,
-            insumo_id=insumo.id_insumo
+            insumo_id=insumo_id,
+            bebida_id=bebida_id
         )
 
         nova_entrada.save(local_session)
