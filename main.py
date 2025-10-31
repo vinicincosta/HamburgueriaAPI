@@ -374,7 +374,9 @@ def cadastrar_pedido():
             lanche = db_session.query(Lanche).filter_by(id_lanche=id_lanche).first()
             if not lanche:
                 return jsonify({"error": "Lanche não encontrado"}), 404
-            
+
+
+
         if id_bebida is not None:
             if id_bebida:
                 bebida = db_session.query(Bebida).filter_by(id_bebida=id_bebida).first()
@@ -989,15 +991,15 @@ def get_insumo_id(id_insumo):
 # EDITAR (PUT)
 
 @app.route('/pedidos/mesa<numero_mesa>', methods=['PUT'])
-def editar_pedidos_numero_mesa(numero_mesa): # Função para fechar a conta/ mudar a mesa
+def editar_pedidos_numero_mesa(numero_mesa): # Função para fechar a conta
     try:
         db_session = local_session()
         dados = request.get_json()
-        pedidos = db_session.execute(select(Pedido).filter_by(numero_mesa=int(numero_mesa))).scalars()
+        pedidos_ = db_session.execute(select(Pedido).filter_by(numero_mesa=int(numero_mesa))).scalars()
         resultado = []
-        for p in pedidos:
+        for p in pedidos_:
             resultado.append(p.serialize())
-            
+        return jsonify({"pedidos": resultado})
     except Exception as e:
         return jsonify({'error':f'{e}'})
     
