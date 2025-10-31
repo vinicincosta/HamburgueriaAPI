@@ -268,41 +268,44 @@ def cadastrar_entrada():
 
         if any(dados[campo] == "" for campo in campos_obrigatorios):
             return jsonify({"error": "Preencha todos os campos"}), 400
-        if 'insumo_id' in dados:
+
+            # Validações numéricas
+
+            qtd = int(dados["qtd_entrada"])
+            valor = float(dados["valor_entrada"])
+
+            if qtd <= 0 or valor <= 0:
+                return jsonify({"error": "Quantidade e valor devem ser maiores que zero"}), 400
+
+        if 'insumo_id' in dados and 'bebida_id' in dados:
+            return jsonify({"error":"Insira apenas o ID de um item"}), 400
+        elif 'insumo_id' in dados:
             # Verificar se o insumo existe
             insumo = local_session.query(Insumo).filter_by(id_insumo=dados["insumo_id"]).first()
             if not insumo:
                 return jsonify({"error": "Não encontrado"}), 400
+            # Atualiza o estoque do insumo
+            insumo.qtd_insumo += qtd
 
         elif 'bebida_id' in dados:
             bebida = local_session.query(Bebida).filter_by(id_bebida=dados["bebida_id"]).first()
             if not bebida:
                 return jsonify({"error": "Não encontrado"}), 400
+            bebida.quantidade += qtd
         else:
             return jsonify({"error": "Não encontrado"}), 400
-    # Validações numéricas
 
-        qtd = int(dados["qtd_entrada"])
-        valor = float(dados["valor_entrada"])
-    except ValueError:
-        return jsonify({"error": "Quantidade e valor devem ser numéricos"}), 400
 
-    if qtd <= 0 or valor <= 0:
-        return jsonify({"error": "Quantidade e valor devem ser maiores que zero"}), 400
 
-    # Atualiza o estoque do insumo
-    insumo.qtd_insumo += qtd
+        # Cria a entrada
+        nova_entrada = Entrada(
+            nota_fiscal=dados["nota_fiscal"],
+            data_entrada=dados["data_entrada"],
+            qtd_entrada=qtd,
+            valor_entrada=valor,
+            insumo_id=insumo.id_insumo
+        )
 
-    # Cria a entrada
-    nova_entrada = Entrada(
-        nota_fiscal=dados["nota_fiscal"],
-        data_entrada=dados["data_entrada"],
-        qtd_entrada=qtd,
-        valor_entrada=valor,
-        insumo_id=insumo.id_insumo
-    )
-
-    try:
         nova_entrada.save(local_session)
         insumo.save(local_session)
 
@@ -332,6 +335,7 @@ def cadastrar_bebida():
             descricao=dados["descricao"],
             categoria=dados["id_categoria"],
             valor=dados["valor"],
+            quantidade=0
         )
         nova_bebida.save(db_session)
     except Exception as e:
