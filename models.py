@@ -211,7 +211,7 @@ class Pedido(Base):
     detalhamento = Column(String(50), nullable=True, index=True)
     ajustes_receita = Column(String(100), nullable=True, index=True)
 
-    status = Column(Boolean, nullable=True, index=True)
+    status = Column(Integer, nullable=False, index=True)
     status_fechado = Column(Boolean, nullable=False, index=True)
 
 
