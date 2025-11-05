@@ -185,7 +185,7 @@ def update_insumo(id_insumo):
 
 # Cadastro (POST)
 @app.route('/usuarios', methods=['POST'])
-def cadastro_usuarios():
+def cadastrar_usuarios():
     dados = request.get_json()
     nome_pessoa = dados['nome_pessoa']
     email = dados['email']
@@ -1016,8 +1016,8 @@ def get_insumo_id(id_insumo):
 
 # EDITAR (PUT)
 
-@app.route('/pedidos/mesa', methods=['PUT'])
-def editar_pedidos_numero_mesa(): # Função para fechar a conta
+#@app.route('/pedidos/mesa', methods=['PUT'])
+#def editar_pedidos_numero_mesa(): # Função para fechar a conta
     # try:
     #     db_session = local_session()
     #     dados = request.get_json()
