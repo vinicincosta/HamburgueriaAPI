@@ -165,6 +165,8 @@ class Venda(Base):
     # relacionamento com Pessoa
     pessoa_id = Column(Integer, ForeignKey('pessoas.id_pessoa'), nullable=False)
 
+    bebida_id = Column(Integer, ForeignKey('bebidas.id_bebida'), nullable=True)
+
     def __repr__(self):
         return '<Venda: {} {}>'.format(self.id_venda, self.data_venda)
 
@@ -193,6 +195,7 @@ class Venda(Base):
             "detalhamento": self.detalhamento,
             "ajustes_receita": self.ajustes_receita,
             "lanche_id": self.lanche_id,
+            "bebida_id": self.bebida_id,
             "pessoa_id": self.pessoa_id,
             "forma_pagamento": self.forma_pagamento,
             "endereco": self.endereco,
