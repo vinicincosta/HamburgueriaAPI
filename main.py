@@ -266,7 +266,6 @@ def cadastrar_lanche():
     finally:
         db_session.close()
 
-
 @app.route("/entradas", methods=["POST"])
 # @jwt_required()
 # @roles_required('admin')
