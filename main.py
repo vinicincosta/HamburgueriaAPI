@@ -150,8 +150,10 @@ def update_insumo(id_insumo):
         # Se não houver JSON, define um dicionário vazio
         data = request.get_json(silent=True) or {}
 
-        # insumo = db_session.query(Insumo).filter_by(id_insumo=id_insumo).first()
-        insumo = db_session.execute(select(Insumo).filter_by(id_insumo=id_insumo)).first()
+        insumo = db_session.execute(
+            select(Insumo).filter_by(id_insumo=id_insumo)
+        ).scalar_one_or_none()
+
         if not insumo:
             return jsonify({"error": "Insumo não encontrado"}), 404
 
@@ -161,18 +163,13 @@ def update_insumo(id_insumo):
         insumo.custo = data.get('custo', insumo.custo)
         insumo.categoria_id = data.get('categoria_id', insumo.categoria_id)
 
+
         LIMITE_MINIMO = 5
         if insumo.qtd_insumo <= LIMITE_MINIMO:
             # pega todos os lanches que usam esse insumo
             lanches_relacionados = db_session.execute(select(Lanche)
                                                       .join(Lanche_insumo, Lanche.id_lanche == Lanche_insumo.lanche_id)
                                                       .filter(Lanche_insumo.insumo_id == insumo.id_insumo)).all()
-            # lanches_relacionados = (
-            #     db_session.query(Lanche)
-            #     .join(Lanche_insumo, Lanche.id_lanche == Lanche_insumo.lanche_id)
-            #     .filter(Lanche_insumo.insumo_id == insumo.id_insumo)
-            #     .all()
-            # )
 
             # desativa os lanches
             for lanche in lanches_relacionados:
@@ -1108,13 +1105,15 @@ def listar_receita_lanche(lanche_id):
     try:
         # Verifica se o lanche existe
         # lanche = db_session.query(Lanche).filter_by(id_lanche=lanche_id).first()
-        lanche = db_session.execute(select(Lanche).filter_by(id_lanche=lanche_id)).first()
+        lanche = db_session.scalars(select(Lanche).filter_by(id_lanche=lanche_id)).first()
         if not lanche:
             return jsonify({"error": "Lanche não encontrado"}), 404
 
         # Pega os insumos do lanche
         # lanche_insumos = db_session.query(Lanche_insumo).filter_by(lanche_id=lanche_id).all()
-        lanche_insumos = db_session.execute(select(Lanche_insumo).filter_by(lanche_id=lanche_id)).all()
+        lanche_insumos = db_session.scalars(
+            select(Lanche_insumo).filter_by(lanche_id=lanche_id)
+        ).all()
         if not lanche_insumos:
             return jsonify({"error": "Este lanche não possui insumos cadastrados"}), 400
 
@@ -1122,7 +1121,9 @@ def listar_receita_lanche(lanche_id):
         receita = []
         for item in lanche_insumos:
             # insumo = db_session.query(Insumo).filter_by(id_insumo=item.insumo_id).first()
-            insumo = db_session.execute(select(Insumo).filter_by(id_insumo=item.insumo_id)).first()
+            insumo = db_session.scalars(
+                select(Insumo).filter_by(id_insumo=item.insumo_id)
+            ).first()
             if insumo:
                 receita.append({
                     "insumo_id": insumo.id_insumo,
