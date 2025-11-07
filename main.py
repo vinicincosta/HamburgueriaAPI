@@ -292,6 +292,7 @@ def cadastrar_entrada():
         insumo_id = None
         bebida_id = None
 
+
         if qtd <= 0 or valor <= 0:
             return jsonify({"error": "Quantidade e valor devem ser maiores que zero"}), 400
 
