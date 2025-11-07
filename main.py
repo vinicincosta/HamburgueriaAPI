@@ -288,6 +288,7 @@ def cadastrar_entrada():
         qtd = int(dados["qtd_entrada"])
         valor = float(dados["valor_entrada"])
 
+
         insumo_id = None
         bebida_id = None
 
