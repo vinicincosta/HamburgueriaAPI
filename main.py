@@ -270,11 +270,13 @@ def cadastrar_lanche():
 # @jwt_required()
 # @roles_required('admin')
 def cadastrar_entrada():
+    db_session = local_session()
     try:
         dados = request.get_json()
 
         # Campos obrigatórios
         campos_obrigatorios = ["qtd_entrada", "data_entrada", "nota_fiscal", "valor_entrada"]
+
         if not all(campo in dados for campo in campos_obrigatorios):
             return jsonify({"error": "Campos obrigatórios ausentes"}), 400
 
@@ -286,34 +288,45 @@ def cadastrar_entrada():
         qtd = int(dados["qtd_entrada"])
         valor = float(dados["valor_entrada"])
 
-        insumo_id = ''
-        bebida_id = ''
+        insumo_id = None
+        bebida_id = None
 
         if qtd <= 0 or valor <= 0:
             return jsonify({"error": "Quantidade e valor devem ser maiores que zero"}), 400
 
         if 'insumo_id' in dados and 'bebida_id' in dados:
-            return jsonify({"error": "Insira apenas o ID de um item"}), 400
+            return jsonify({"error":"Insira apenas o ID de um item"}), 400
         elif 'insumo_id' in dados:
             # Verificar se o insumo existe
             # insumo = local_session.query(Insumo).filter_by(id_insumo=dados["insumo_id"]).first()
-            insumo = local_session.execute(select(Insumo).filter_by(id_insumo=dados["insumo_id"])).first()
+            print("????")
+            insumo = db_session.execute(select(Insumo).filter_by(id_insumo=dados["insumo_id"])).scalar()
+            print("@@@@@")
             if not insumo:
                 return jsonify({"error": "Não encontrado"}), 400
-
+            print("insumo: ",insumo)
+            print("insumo_id: ", insumo_id)
             insumo_id = dados['insumo_id']
             # Atualiza o estoque do insumo
+            print("!!!!")
+            print("quantidade: ", insumo.qtd_insumo)
+            print("%%%%")
             insumo.qtd_insumo += qtd
+
+            insumo.save(db_session)
 
         elif 'bebida_id' in dados:
             # bebida = local_session.query(Bebida).filter_by(id_bebida=dados["bebida_id"]).first()
-            bebida = local_session.execute(select(Bebida).filter_by(id_bebida=dados["bebida_id"])).first()
+            bebida = db_session.execute(select(Bebida).filter_by(id_bebida=dados["bebida_id"])).first()
             if not bebida:
                 return jsonify({"error": "Não encontrado"}), 400
             bebida_id = dados['bebida_id']
             bebida.quantidade += qtd
+
+            bebida.save(db_session)
         else:
             return jsonify({"error": "Não encontrado"}), 400
+
 
         # Cria a entrada
         nova_entrada = Entrada(
@@ -325,8 +338,7 @@ def cadastrar_entrada():
             bebida_id=bebida_id
         )
 
-        nova_entrada.save(local_session)
-        insumo.save(local_session)
+        nova_entrada.save(db_session)
 
         return jsonify({
             "success": "Entrada cadastrada com sucesso",
@@ -335,6 +347,7 @@ def cadastrar_entrada():
 
     except Exception as e:
         return jsonify({"error": f"Erro ao salvar entrada: {str(e)}"}), 500
+
 
 
 @app.route("/bebidas", methods=["POST"])
@@ -1269,14 +1282,13 @@ def get_insumo_id(id_insumo):
 
 
 # EDITAR (PUT)
-
 @app.route('/pedidos/mesa', methods=['PUT'])
 def editar_pedidos_numero_mesa():  # Função para fechar a conta
     try:
         db_session = local_session()
         dados = request.get_json()
         pedidos_ = db_session.execute(
-            select(Pedido).filter_by(numero_mesa=int(dados['numero_mesa']), status_fechado=False)).scalars()
+            select(Pedido).filter_by(numero_mesa=int(dados['numero_mesa']))).scalars()
         resultado = []
         for p in pedidos_:
             resultado.append(p.serialize())
