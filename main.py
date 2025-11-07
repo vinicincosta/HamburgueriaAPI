@@ -631,6 +631,7 @@ def cadastrar_insumo():
     finally:
         db_session.close()
 
+
 @app.route("/lanche_insumos", methods=["POST"])
 # @jwt_required()
 # @roles_required('admin')
