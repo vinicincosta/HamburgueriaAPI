@@ -150,8 +150,10 @@ def update_insumo(id_insumo):
         # Se não houver JSON, define um dicionário vazio
         data = request.get_json(silent=True) or {}
 
-        # insumo = db_session.query(Insumo).filter_by(id_insumo=id_insumo).first()
-        insumo = db_session.execute(select(Insumo).filter_by(id_insumo=id_insumo)).first()
+        insumo = db_session.execute(
+            select(Insumo).filter_by(id_insumo=id_insumo)
+        ).scalar_one_or_none()
+
         if not insumo:
             return jsonify({"error": "Insumo não encontrado"}), 404
 
@@ -161,18 +163,13 @@ def update_insumo(id_insumo):
         insumo.custo = data.get('custo', insumo.custo)
         insumo.categoria_id = data.get('categoria_id', insumo.categoria_id)
 
+
         LIMITE_MINIMO = 5
         if insumo.qtd_insumo <= LIMITE_MINIMO:
             # pega todos os lanches que usam esse insumo
             lanches_relacionados = db_session.execute(select(Lanche)
                                                       .join(Lanche_insumo, Lanche.id_lanche == Lanche_insumo.lanche_id)
                                                       .filter(Lanche_insumo.insumo_id == insumo.id_insumo)).all()
-            # lanches_relacionados = (
-            #     db_session.query(Lanche)
-            #     .join(Lanche_insumo, Lanche.id_lanche == Lanche_insumo.lanche_id)
-            #     .filter(Lanche_insumo.insumo_id == insumo.id_insumo)
-            #     .all()
-            # )
 
             # desativa os lanches
             for lanche in lanches_relacionados:
@@ -497,70 +494,77 @@ def cadastrar_pedido():
     try:
         dados = request.get_json()
 
-        #  Campos obrigatórios
+        # Campos obrigatórios
         campos_obrigatorios = ["numero_mesa", "id_pessoa"]
         for campo in campos_obrigatorios:
             if campo not in dados or dados[campo] in [None, ""]:
                 return jsonify({"error": f"Campo obrigatório ausente: {campo}"}), 400
 
         numero_mesa = int(dados["numero_mesa"])
-        id_lanche = int(dados.get("id_lanche"))
-        id_bebida = dados.get("id_bebida")
+        id_pessoa = int(dados["id_pessoa"])
         qtd_lanche = int(dados.get("qtd_lanche", 1))
         data_pedido = dados.get("data_pedido", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-        id_pessoa = int(dados["id_pessoa"])
         detalhamento = dados.get("detalhamento", "")
         observacoes = dados.get("observacoes", {"adicionar": [], "remover": []})
 
-        #  Verificações de existência
+        # ⚙️ Trata lanche e bebida como opcionais
+        id_lanche_raw = dados.get("id_lanche")
+        id_bebida_raw = dados.get("id_bebida")
 
-        lanche = db_session.query(Lanche).filter_by(id_lanche=id_lanche).first()
-        if not lanche:
-            return jsonify({"error": "Lanche não encontrado"}), 404
+        id_lanche = int(id_lanche_raw) if id_lanche_raw not in [None, "", 0] else None
+        id_bebida = int(id_bebida_raw) if id_bebida_raw not in [None, "", 0] else None
 
+        # ⚠️ Verifica se ao menos um dos dois foi informado
+        if not id_lanche and not id_bebida:
+            return jsonify({"error": "É necessário informar pelo menos um lanche ou uma bebida"}), 400
+
+        receita_final = {}
+
+        # 🔸 Se for um pedido com lanche
+        if id_lanche:
+            lanche = db_session.query(Lanche).filter_by(id_lanche=id_lanche).first()
+            if not lanche:
+                return jsonify({"error": "Lanche não encontrado"}), 404
+
+            receita = db_session.query(Lanche_insumo).filter_by(lanche_id=id_lanche).all()
+            if not receita:
+                return jsonify({"error": "Esse lanche não tem receita cadastrada"}), 400
+
+            receita_final = {item.insumo_id: item.qtd_insumo for item in receita}
+
+            # Ajustes por observações
+            for rem in observacoes.get("remover", []):
+                if rem["insumo_id"] in receita_final:
+                    receita_final[rem["insumo_id"]] = max(
+                        0, receita_final[rem["insumo_id"]] - rem["qtd"] * 100
+                    )
+
+            for add in observacoes.get("adicionar", []):
+                receita_final[add["insumo_id"]] = receita_final.get(add["insumo_id"], 0) + add["qtd"] * 100
+
+            # Verifica estoque
+            for insumo_id, qtd in receita_final.items():
+                insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
+                if not insumo:
+                    return jsonify({"error": f"Insumo ID {insumo_id} não encontrado"}), 404
+                if insumo.qtd_insumo < qtd * qtd_lanche:
+                    return jsonify({"error": f"Estoque insuficiente para: {insumo.nome_insumo}"}), 400
+
+            # Dá baixa no estoque
+            for insumo_id, qtd in receita_final.items():
+                insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
+                insumo.qtd_insumo -= qtd * qtd_lanche
+                db_session.add(insumo)
+
+        # 🔹 Se for um pedido apenas de bebida
         if id_bebida:
             bebida = db_session.query(Bebida).filter_by(id_bebida=id_bebida).first()
             if not bebida:
                 return jsonify({"error": "Bebida não encontrada"}), 404
 
-        receita = db_session.query(Lanche_insumo).filter_by(lanche_id=id_lanche).all()
-        if not receita:
-            return jsonify({"error": "Esse lanche não tem receita cadastrada"}), 400
-
-        # Montagem da receita ajustada
-
-        receita_final = {item.insumo_id: item.qtd_insumo for item in receita}
-
-        # Remover insumos
-        for rem in observacoes.get("remover", []):
-            if rem["insumo_id"] in receita_final:
-                receita_final[rem["insumo_id"]] = max(
-                    0, receita_final[rem["insumo_id"]] - rem["qtd"] * 100
-                )
-
-        # Adicionar insumos extras
-        for add in observacoes.get("adicionar", []):
-            receita_final[add["insumo_id"]] = receita_final.get(add["insumo_id"], 0) + add["qtd"] * 100
-
-        # Verificação de estoque
-
-        for insumo_id, qtd in receita_final.items():
-            insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
-            if not insumo:
-                return jsonify({"error": f"Insumo ID {insumo_id} não encontrado"}), 404
-            if insumo.qtd_insumo < qtd * qtd_lanche:
-                return jsonify({"error": f"Estoque insuficiente para: {insumo.nome_insumo}"}), 400
-
-        #  Dar baixa no estoque
-        for insumo_id, qtd in receita_final.items():
-            insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
-            insumo.qtd_insumo -= qtd * qtd_lanche
-            db_session.add(insumo)
-
         receita_final_str_keys = {str(k): v for k, v in receita_final.items()}
 
         # Registro dos pedidos
-
         pedidos_registrados = []
         for _ in range(qtd_lanche):
             novo_pedido = Pedido(
@@ -575,7 +579,7 @@ def cadastrar_pedido():
                 status_fechado=False
             )
             db_session.add(novo_pedido)
-            db_session.flush()  # Garante que o ID seja gerado antes do commit
+            db_session.flush()
 
             venda_dict = novo_pedido.serialize()
             venda_dict["ajustes_receita"] = {int(k): v for k, v in receita_final_str_keys.items()}
@@ -590,10 +594,12 @@ def cadastrar_pedido():
 
     except Exception as e:
         db_session.rollback()
+        print("ERRO cadastrar_pedido:", e)
         return jsonify({"error": str(e)}), 500
 
     finally:
         db_session.close()
+
 
 
 @app.route('/insumos', methods=['POST'])
@@ -798,108 +804,119 @@ def cadastrar_lanche_insumo():
 #         db_session.close()
 
 @app.route('/vendas', methods=['POST'])
-# @jwt_required()
-# @roles_required('garcom', 'cozinha', 'admin')
 def cadastrar_venda():
     db_session = local_session()
     try:
         dados = request.get_json()
-        campos = ["data_venda", "lanche_id", "pessoa_id", "qtd_lanche", "detalhamento"]
+        campos = ["data_venda", "pessoa_id", "qtd_lanche", "detalhamento"]
 
+        # Verificação dos campos obrigatórios
         if not all(campo in dados for campo in campos):
             return jsonify({"error": "Campos obrigatórios não informados"}), 400
 
-        lanche_id = dados["lanche_id"]
+        lanche_id = dados.get("lanche_id")
         pessoa_id = dados["pessoa_id"]
-        bebida_id = dados["bebida_id"]
+        bebida_id = dados.get("bebida_id")
         data_venda = dados["data_venda"]
         detalhamento = dados["detalhamento"]
         qtd_lanche = int(dados["qtd_lanche"])
-        endereco = dados['endereco']
-        forma_pagamento = dados['forma_pagamento']
-
+        endereco = dados.get("endereco", "Presencial")
+        forma_pagamento = dados.get("forma_pagamento", "Indefinido")
         observacoes = dados.get("observacoes", {"adicionar": [], "remover": []})
 
-        lanche = db_session.query(Lanche).filter_by(id_lanche=lanche_id).first()
+        # Verifica pessoa
         pessoa = db_session.query(Pessoa).filter_by(id_pessoa=pessoa_id).first()
-        bebida = db_session.query(Bebida).filter_by(id_bebida=bebida_id).first()
-
-        if not lanche:
-            return jsonify({"error": "Lanche não encontrado"}), 404
         if not pessoa:
             return jsonify({"error": "Pessoa não encontrada"}), 404
 
-        if not bebida:
-            return jsonify({"error": "Bebida não encontrada"}), 404
+        # 🔧 Corrigido: se vier null ou string vazia, transforma em None
+        lanche_id = lanche_id if lanche_id not in ("", None, "null") else None
+        bebida_id = bebida_id if bebida_id not in ("", None, "null") else None
 
-        # Receita base do lanche
-        receita = db_session.query(Lanche_insumo).filter_by(lanche_id=lanche_id).all()
-        if not receita:
-            return jsonify({"error": "Esse lanche não tem receita cadastrada"}), 400
+        receita_final_str_keys = {}
+        valor_venda = 0.0
 
-        # Montar receita ajustada
-        receita_final = {item.insumo_id: item.qtd_insumo for item in receita}
+        #  Caso de lanche
+        if lanche_id:
+            lanche = db_session.query(Lanche).filter_by(id_lanche=lanche_id).first()
+            if not lanche:
+                return jsonify({"error": "Lanche não encontrado"}), 404
 
-        # Remover insumos
-        for rem in observacoes.get("remover", []):
-            if rem["insumo_id"] in receita_final:
-                receita_final[rem["insumo_id"]] = max(
-                    0, receita_final[rem["insumo_id"]] - rem["qtd"] * 100
-                )
+            receita = db_session.query(Lanche_insumo).filter_by(lanche_id=lanche_id).all()
+            if not receita:
+                return jsonify({"error": "Esse lanche não tem receita cadastrada"}), 400
 
-        # Adicionar insumos extras
-        for add in observacoes.get("adicionar", []):
-            receita_final[add["insumo_id"]] = receita_final.get(add["insumo_id"], 0) + add["qtd"] * 100
+            receita_final = {item.insumo_id: item.qtd_insumo for item in receita}
 
-        # Verificar estoque
-        for insumo_id, qtd in receita_final.items():
-            insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
-            if not insumo:
-                return jsonify({"error": f"Insumo ID {insumo_id} não encontrado"}), 404
-            if insumo.qtd_insumo < qtd * qtd_lanche:
-                return jsonify({"error": f"Estoque insuficiente para: {insumo.nome_insumo}"}), 400
+            # Ajustes personalizados
+            for rem in observacoes.get("remover", []):
+                if rem["insumo_id"] in receita_final:
+                    receita_final[rem["insumo_id"]] = max(
+                        0, receita_final[rem["insumo_id"]] - rem["qtd"] * 100
+                    )
 
-        # Dar baixa nos insumos
-        for insumo_id, qtd in receita_final.items():
-            insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
-            insumo.qtd_insumo -= qtd * qtd_lanche
-            db_session.add(insumo)
+            for add in observacoes.get("adicionar", []):
+                receita_final[add["insumo_id"]] = receita_final.get(add["insumo_id"], 0) + add["qtd"] * 100
 
-        # Converter chaves para string antes de salvar
-        receita_final_str_keys = {str(k): v for k, v in receita_final.items()}
+            # Validação de estoque
+            for insumo_id, qtd in receita_final.items():
+                insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
+                if not insumo:
+                    return jsonify({"error": f"Insumo ID {insumo_id} não encontrado"}), 404
+                if insumo.qtd_insumo < qtd * qtd_lanche:
+                    return jsonify({"error": f"Estoque insuficiente para: {insumo.nome_insumo}"}), 400
 
-        # Registrar vendas
-        vendas_registradas = []
-        for _ in range(qtd_lanche):
-            nova_venda = Venda(
-                data_venda=data_venda,
-                lanche_id=lanche_id,
-                pessoa_id=pessoa_id,
-                bebida_id=bebida_id,
-                valor_venda=lanche.valor_lanche,
-                detalhamento=detalhamento,
-                status_venda=True,
-                endereco=endereco,
-                forma_pagamento=forma_pagamento,
-                ajustes_receita=json.dumps(receita_final_str_keys)
-            )
-            nova_venda.save(db_session)
-            venda_dict = nova_venda.serialize()
-            # converter de volta para int no retorno
-            venda_dict["ajustes_receita"] = {int(k): v for k, v in receita_final_str_keys.items()}
-            vendas_registradas.append(venda_dict)
+            # Atualiza estoque
+            for insumo_id, qtd in receita_final.items():
+                insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
+                insumo.qtd_insumo -= qtd * qtd_lanche
+                db_session.add(insumo)
+
+            receita_final_str_keys = {str(k): v for k, v in receita_final.items()}
+            valor_venda += float(lanche.valor_lanche)
+
+        #  Caso de bebida
+        if bebida_id:
+            bebida = db_session.query(Bebida).filter_by(id_bebida=bebida_id).first()
+            if not bebida:
+                return jsonify({"error": "Bebida não encontrada"}), 404
+
+            valor_venda += float(bebida.valor)
+
+        # Nenhum item informado
+        if not lanche_id and not bebida_id:
+            return jsonify({"error": "É necessário informar pelo menos um lanche ou uma bebida"}), 400
+
+        # ✅ Monta objeto da venda corretamente
+        nova_venda = Venda(
+            data_venda=data_venda,
+            lanche_id=lanche_id,  # pode ser None
+            pessoa_id=pessoa_id,
+            bebida_id=bebida_id,  # pode ser None
+            valor_venda=valor_venda,
+            detalhamento=detalhamento,
+            status_venda=True,
+            endereco=endereco,
+            forma_pagamento=forma_pagamento,
+            ajustes_receita=json.dumps(receita_final_str_keys)
+        )
+
+        nova_venda.save(db_session)
+
+        venda_dict = nova_venda.serialize()
+        venda_dict["ajustes_receita"] = {int(k): v for k, v in receita_final_str_keys.items()}
 
         return jsonify({
-            "success": f"{qtd_lanche} vendas registradas com sucesso",
-            "vendas": vendas_registradas
+            "success": "Venda registrada com sucesso",
+            "venda": venda_dict
         }), 201
 
     except Exception as e:
         db_session.rollback()
+        print("ERRO cadastrar_venda:", str(e))
         return jsonify({"error": str(e)}), 500
     finally:
         db_session.close()
-
 
 @app.route('/categorias', methods=['POST'])
 # @jwt_required()
@@ -1108,13 +1125,15 @@ def listar_receita_lanche(lanche_id):
     try:
         # Verifica se o lanche existe
         # lanche = db_session.query(Lanche).filter_by(id_lanche=lanche_id).first()
-        lanche = db_session.execute(select(Lanche).filter_by(id_lanche=lanche_id)).first()
+        lanche = db_session.scalars(select(Lanche).filter_by(id_lanche=lanche_id)).first()
         if not lanche:
             return jsonify({"error": "Lanche não encontrado"}), 404
 
         # Pega os insumos do lanche
         # lanche_insumos = db_session.query(Lanche_insumo).filter_by(lanche_id=lanche_id).all()
-        lanche_insumos = db_session.execute(select(Lanche_insumo).filter_by(lanche_id=lanche_id)).all()
+        lanche_insumos = db_session.scalars(
+            select(Lanche_insumo).filter_by(lanche_id=lanche_id)
+        ).all()
         if not lanche_insumos:
             return jsonify({"error": "Este lanche não possui insumos cadastrados"}), 400
 
@@ -1122,7 +1141,9 @@ def listar_receita_lanche(lanche_id):
         receita = []
         for item in lanche_insumos:
             # insumo = db_session.query(Insumo).filter_by(id_insumo=item.insumo_id).first()
-            insumo = db_session.execute(select(Insumo).filter_by(id_insumo=item.insumo_id)).first()
+            insumo = db_session.scalars(
+                select(Insumo).filter_by(id_insumo=item.insumo_id)
+            ).first()
             if insumo:
                 receita.append({
                     "insumo_id": insumo.id_insumo,

@@ -161,7 +161,7 @@ class Venda(Base):
     forma_pagamento = Column(String, nullable=False)
 
     # relacionamento com Lanche
-    lanche_id = Column(Integer, ForeignKey('lanches.id_lanche'), nullable=False)
+    lanche_id = Column(Integer, ForeignKey('lanches.id_lanche'), nullable=True)
     # relacionamento com Pessoa
     pessoa_id = Column(Integer, ForeignKey('pessoas.id_pessoa'), nullable=False)
 
