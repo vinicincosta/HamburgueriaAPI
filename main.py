@@ -1,17 +1,13 @@
 import json
-
 from flask import Flask, jsonify, request, redirect, url_for
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 from datetime import datetime
-
 from werkzeug.exceptions import BadRequest
-
 from models import *
 from flask_jwt_extended import create_access_token, jwt_required, JWTManager, get_jwt_identity
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
-
 # from flask_login import LoginManager, current_user, login_required, login_user, logout_user, current_user
 app = Flask(__name__)
 app.config['JWT_SECRET_KEY'] = "03050710"
@@ -1614,6 +1610,18 @@ def deletar_lanche_insumo():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/teste', methods=['GET'])
+@jwt_required()
+def teste():
+    db_session = local_session()
+    try:
+        claims = get_jwt()
+        id_usuario = claims["id_usuario"]
+        return jsonify({'sucesso': id_usuario}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)})
+    finally:
+        db_session.close()
 
 if __name__ == '__main__':
     app.run(debug=True, host="0.0.0.0", port=5002)
