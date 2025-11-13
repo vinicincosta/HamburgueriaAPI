@@ -170,6 +170,12 @@ def update_insumo(id_insumo):
             lanches_relacionados = db_session.execute(select(Lanche)
                                                       .join(Lanche_insumo, Lanche.id_lanche == Lanche_insumo.lanche_id)
                                                       .filter(Lanche_insumo.insumo_id == insumo.id_insumo)).all()
+            # lanches_relacionados = (
+            #     db_session.query(Lanche)
+            #     .join(Lanche_insumo, Lanche.id_lanche == Lanche_insumo.lanche_id)
+            #     .filter(Lanche_insumo.insumo_id == insumo.id_insumo)
+            #     .all()
+            # )
 
             # desativa os lanches
             for lanche in lanches_relacionados:
