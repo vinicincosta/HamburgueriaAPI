@@ -262,7 +262,7 @@ class Bebida(Base):
     valor = Column(Float, nullable=False, index=True)
     quantidade = Column(Integer, nullable=False, index=True)
     categoria = Column(Integer, ForeignKey('categorias.id_categoria'), nullable=False)
-    status_bebida = Column(Integer, nullable=False, index=True, default=True)
+    status_bebida = Column(Boolean, nullable=False, index=True, default=True)
     def __repr__(self):
         return '<Bebida: {} {}>'.format(self.id_bebida, self.nome_bebida)
     def save(self, db_session):
