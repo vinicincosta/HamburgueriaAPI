@@ -8,8 +8,10 @@ from models import *
 from flask_jwt_extended import create_access_token, jwt_required, JWTManager, get_jwt_identity, get_jwt
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_cors import CORS
 # from flask_login import LoginManager, current_user, login_required, login_user, logout_user, current_user
 app = Flask(__name__)
+CORS(app)
 app.config['JWT_SECRET_KEY'] = "03050710"
 jwt = JWTManager(app)
 
@@ -1548,6 +1550,25 @@ def deletar_lanche_insumo():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# grafco
+@app.route('/dados_grafico')
+def dados_grafico():
+    session = local_session()
+    vendas = session.query(Venda).all()
+
+    datas = []
+    valores = []
+
+    for v in vendas:
+        datas.append(v.data_venda)      # ex: "2025-11-20 16:40:03"
+        valores.append(v.valor_venda)   # ex: 85.9
+
+    return jsonify({
+        "labels": datas,
+        "values": valores
+    })
+# -----------
+
 # @app.route('/teste', methods=['GET'])
 # @jwt_required()
 # def teste():
@@ -1563,5 +1584,6 @@ def deletar_lanche_insumo():
 
 if __name__ == '__main__':
     app.run(debug=True, host="0.0.0.0", port=5002)
+
 
 # TESTE PUSH
