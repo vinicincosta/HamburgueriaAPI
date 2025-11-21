@@ -1,8 +1,9 @@
 import json
 from flask import Flask, jsonify, request, redirect, url_for
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import joinedload
 from datetime import datetime
+from collections import defaultdict
 from werkzeug.exceptions import BadRequest
 from models import *
 from flask_jwt_extended import create_access_token, jwt_required, JWTManager, get_jwt_identity, get_jwt
@@ -1550,7 +1551,7 @@ def deletar_lanche_insumo():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# grafco
+# grafco de vendas
 @app.route('/dados_grafico')
 def dados_grafico():
     session = local_session()
@@ -1568,6 +1569,33 @@ def dados_grafico():
         "values": valores
     })
 # -----------
+# grafico de faturamento
+@app.route("/faturamento_mensal", methods=["GET"])
+def faturamento_mensal():
+    vendas = local_session.query(Venda).all()
+
+    faturamento = defaultdict(float)
+
+    for venda in vendas:
+        try:
+            # Converte string para datetime a partir do formato ISO
+            data = datetime.strptime(venda.data_venda, "%Y-%m-%d %H:%M:%S")
+
+            # Agrupa por ano-mês (ex: "2025-11")
+            chave_mes = data.strftime("%Y-%m")
+
+            faturamento[chave_mes] += venda.valor_venda
+
+        except Exception as e:
+            print("Erro:", venda.data_venda, e)
+
+    resposta = [
+        {"mes": mes, "faturamento": round(valor, 2)}
+        for mes, valor in sorted(faturamento.items())
+    ]
+
+    return jsonify(resposta)
+#
 
 # @app.route('/teste', methods=['GET'])
 # @jwt_required()
