@@ -1557,17 +1557,30 @@ def dados_grafico():
     session = local_session()
     vendas = session.query(Venda).all()
 
-    datas = []
-    valores = []
+    agrupado = {}
 
     for v in vendas:
-        datas.append(v.data_venda)      # ex: "2025-11-20 16:40:03"
-        valores.append(v.valor_venda)   # ex: 85.9
+        data = v.data_venda
 
-    return jsonify({
-        "labels": datas,
-        "values": valores
-    })
+        # Se veio como string, converter
+        if isinstance(data, str):
+            data = datetime.strptime(data, "%Y-%m-%d %H:%M:%S")
+
+        ano = data.year
+        mes = data.month
+        chave = (ano, mes)
+
+        if chave not in agrupado:
+            agrupado[chave] = 0
+
+        agrupado[chave] += v.valor_venda
+
+    agrupado_ordenado = dict(sorted(agrupado.items()))
+
+    labels = [f"{mes:02d}/{ano}" for (ano, mes) in agrupado_ordenado.keys()]
+    valores = list(agrupado_ordenado.values())
+
+    return jsonify({"labels": labels, "values": valores})
 # -----------
 # grafico de faturamento
 @app.route("/faturamento_mensal", methods=["GET"])
@@ -1578,7 +1591,7 @@ def faturamento_mensal():
 
     for venda in vendas:
         try:
-            # Converte string para datetime a partir do formato ISO
+            # Converte string para datetime com hora
             data = datetime.strptime(venda.data_venda, "%Y-%m-%d %H:%M:%S")
 
             # Agrupa por ano-mês (ex: "2025-11")
