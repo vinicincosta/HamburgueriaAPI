@@ -1605,7 +1605,6 @@ def faturamento_mensal():
         {"mes": mes, "faturamento": round(valor, 2)}
         for mes, valor in sorted(faturamento.items())
     ]
-
     return jsonify(resposta)
 #
 
