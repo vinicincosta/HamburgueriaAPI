@@ -11,6 +11,7 @@ from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_cors import CORS
 # from flask_login import LoginManager, current_user, login_required, login_user, logout_user, current_user
+from sqlalchemy import func, and_, not_
 app = Flask(__name__)
 CORS(app)
 app.config['JWT_SECRET_KEY'] = "03050710"
@@ -1620,7 +1621,194 @@ def faturamento_mensal():
     ]
     return jsonify(resposta)
 #
+@app.route('/vendas_valor_por_funcionario', methods=['GET'])
+def vendas_valor_por_funcionario():
+    """
+    Retorna, por funcionário:
+      - count: quantidade de vendas no dia
+      - total: soma de valor_venda no dia
+    Query params:
+      ?date=YYYY-MM-DD        (default: hoje)
+      ?role=garcom            (filtra por Pessoa.papel)
+      ?include_delivery=true  (default false -> exclui delivery)
+      ?include_zeros=true     (inclui funcionários com total 0)
+    """
+    date_str = request.args.get('date') or datetime.now().strftime('%Y-%m-%d')
+    role = request.args.get('role')                     # ex: "garcom"
+    include_delivery = request.args.get('include_delivery', 'false').lower() == 'true'
+    include_zeros = request.args.get('include_zeros', 'false').lower() == 'true'
 
+    db = local_session()
+    try:
+        # Base: vendas do dia (pega somente a parte YYYY-MM-DD)
+        qry = db.query(
+            Venda.pessoa_id.label('pessoa_id'),
+            func.count(Venda.id_venda).label('qtd'),
+            func.coalesce(func.sum(Venda.valor_venda), 0).label('total')
+        ).filter(func.substr(Venda.data_venda, 1, 10) == date_str)
+
+        # Se for para excluir deliveries e SE existir relacionamento via Pedido, usamos numero_mesa==0
+        # Tentativa segura: checar se as colunas existem e o modelo Pedido está presente
+        use_pedido_flag = False
+        try:
+            # checa se Venda tem coluna pedido_id e existe o modelo Pedido com numero_mesa
+            if 'pedido_id' in Venda.__table__.columns and 'numero_mesa' in Pedido.__table__.columns:
+                use_pedido_flag = True
+        except Exception:
+            use_pedido_flag = False
+
+        if not include_delivery:
+            if use_pedido_flag:
+                # join com Pedido e excluir where Pedido.numero_mesa == 0
+                qry = qry.join(Pedido, Pedido.id_pedido == Venda.pedido_id).filter(Pedido.numero_mesa != 0)
+            else:
+                # fallback: excluir quando endereco indica delivery ou endereco == '0' ou vazio
+                qry = qry.filter(
+                    and_(
+                        not_(Venda.endereco.ilike('%delivery%')),
+                        not_(Venda.endereco.ilike('%entrega%')),
+                        Venda.endereco != '0',
+                        Venda.endereco != ''
+                    )
+                )
+
+        # se pediu filtrar por papel, junta com Pessoa e filtra
+        if role:
+            qry = qry.join(Pessoa, Pessoa.id_pessoa == Venda.pessoa_id).filter(func.lower(Pessoa.papel) == role.lower())
+
+        rows = qry.group_by(Venda.pessoa_id).order_by(func.sum(Venda.valor_venda).desc()).all()
+
+        labels = []
+        counts = []
+        totals = []
+        ids_present = set()
+
+        for pessoa_id, qtd, total in rows:
+            pessoa = db.query(Pessoa).filter_by(id_pessoa=pessoa_id).first()
+            nome = pessoa.nome_pessoa if pessoa else f"ID {pessoa_id}"
+            labels.append(nome)
+            counts.append(int(qtd))
+            totals.append(float(total or 0))
+            ids_present.add(pessoa_id)
+
+        # incluir zeros: buscar todos os funcionários com o papel (ou todos se role None)
+        if include_zeros:
+            pquery = db.query(Pessoa)
+            if role:
+                pquery = pquery.filter(func.lower(Pessoa.papel) == role.lower())
+            pessoas = pquery.all()
+            for p in pessoas:
+                if p.id_pessoa not in ids_present:
+                    labels.append(p.nome_pessoa)
+                    counts.append(0)
+                    totals.append(0.0)
+
+        return jsonify({
+            "date": date_str,
+            "role": role,
+            "include_delivery": include_delivery,
+            "labels": labels,
+            "counts": counts,
+            "totals": totals
+        })
+    finally:
+        db.close()
+
+@app.route('/vendas_valor_por_funcionario_mes', methods=['GET'])
+def vendas_valor_por_funcionario_mes():
+    """
+    Retorna, por funcionário:
+      - qtd: quantidade de vendas no mês
+      - total: soma do valor vendido no mês
+    Query params:
+      ?month=YYYY-MM  (default: mês atual)
+      ?role=garcom
+      ?include_delivery=true/false  (default false = exclui delivery)
+      ?include_zeros=true/false
+    """
+    month_str = request.args.get('month') or datetime.now().strftime('%Y-%m')
+    role = request.args.get('role')
+    include_delivery = request.args.get('include_delivery', 'false').lower() == 'true'
+    include_zeros = request.args.get('include_zeros', 'false').lower() == 'true'
+
+    db = local_session()
+    try:
+        # Vendas do mês -- substr pega só o YYYY-MM
+        qry = db.query(
+            Venda.pessoa_id.label('pessoa_id'),
+            func.count(Venda.id_venda).label('qtd'),
+            func.coalesce(func.sum(Venda.valor_venda), 0).label('total')
+        ).filter(func.substr(Venda.data_venda, 1, 7) == month_str)
+
+        # Detectar se pode usar Pedido.numero_mesa == 0
+        use_pedido_flag = False
+        try:
+            if 'pedido_id' in Venda.__table__.columns and 'numero_mesa' in Pedido.__table__.columns:
+                use_pedido_flag = True
+        except:
+            use_pedido_flag = False
+
+        # excluir delivery
+        if not include_delivery:
+            if use_pedido_flag:
+                qry = qry.join(Pedido, Pedido.id_pedido == Venda.pedido_id).filter(Pedido.numero_mesa != 0)
+            else:
+                qry = qry.filter(
+                    and_(
+                        not_(Venda.endereco.ilike('%delivery%')),
+                        not_(Venda.endereco.ilike('%entrega%')),
+                        Venda.endereco != '0',
+                        Venda.endereco != ''
+                    )
+                )
+
+        # filtrar por papel
+        if role:
+            qry = qry.join(Pessoa, Pessoa.id_pessoa == Venda.pessoa_id)\
+                     .filter(func.lower(Pessoa.papel) == role.lower())
+
+        # resultado agrupado
+        rows = qry.group_by(Venda.pessoa_id)\
+                  .order_by(func.sum(Venda.valor_venda).desc())\
+                  .all()
+
+        labels = []
+        counts = []
+        totals = []
+        ids_present = set()
+
+        for pid, qtd, total in rows:
+            pessoa = db.query(Pessoa).filter_by(id_pessoa=pid).first()
+            nome = pessoa.nome_pessoa if pessoa else f"ID {pid}"
+            labels.append(nome)
+            counts.append(int(qtd))
+            totals.append(float(total or 0))
+            ids_present.add(pid)
+
+        # incluir funcionários com 0 vendas
+        if include_zeros:
+            q = db.query(Pessoa)
+            if role:
+                q = q.filter(func.lower(Pessoa.papel) == role.lower())
+            pessoas = q.all()
+
+            for p in pessoas:
+                if p.id_pessoa not in ids_present:
+                    labels.append(p.nome_pessoa)
+                    counts.append(0)
+                    totals.append(0.0)
+
+        return jsonify({
+            "month": month_str,
+            "role": role,
+            "include_delivery": include_delivery,
+            "labels": labels,
+            "counts": counts,
+            "totals": totals
+        })
+
+    finally:
+        db.close()
 # @app.route('/teste', methods=['GET'])
 # @jwt_required()
 # def teste():
