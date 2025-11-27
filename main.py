@@ -751,6 +751,7 @@ def cadastrar_venda():
         if not all(campo in dados for campo in campos):
             return jsonify({"error": "Campos obrigatórios não informados"}), 400
 
+        # --- CAMPOS ENVIADOS PELO APP ---
         lanche_id = dados.get("lanche_id")
         pessoa_id = dados["pessoa_id"]
         bebida_id = dados.get("bebida_id")
@@ -759,29 +760,36 @@ def cadastrar_venda():
         qtd_lanche = int(dados["qtd_lanche"])
         endereco = dados.get("endereco", "Presencial")
         forma_pagamento = dados.get("forma_pagamento", "Indefinido")
+
+        # OBSERVAÇÕES (ADICIONAR/REMOVER INSUMOS)
         observacoes = dados.get("observacoes", {"adicionar": [], "remover": []})
+
+        # VALOR ATUALIZADO DO LANCHE ENVIADO PELO APP (COM ADICIONAIS)
+        valor_venda = float(dados.get("valor_venda", 0))
 
         pessoa = db_session.query(Pessoa).filter_by(id_pessoa=pessoa_id).first()
         if not pessoa:
             return jsonify({"error": "Pessoa não encontrada"}), 404
 
+        # Se vazio/nulo, seta como None
         lanche_id = lanche_id if lanche_id not in ("", None, "null") else None
         bebida_id = bebida_id if bebida_id not in ("", None, "null") else None
 
         receita_final_str_keys = {}
-        valor_venda = 0.0
 
-        # --- LANCHE (SEM VERIFICAÇÃO E SEM BAIXA DE ESTOQUE) ---
+        # =====================================================
+        # ------ PROCESSAMENTO DO LANCHE (SEM BAIXA) ----------
+        # =====================================================
         if lanche_id:
             lanche = db_session.query(Lanche).filter_by(id_lanche=lanche_id).first()
             if not lanche:
                 return jsonify({"error": "Lanche não encontrado"}), 404
 
-            # receita original apenas para registrar ajustes
+            # Receita base
             receita = db_session.query(Lanche_insumo).filter_by(lanche_id=lanche_id).all()
             receita_final = {item.insumo_id: item.qtd_insumo for item in receita}
 
-            # aplica ajustes normalmente, mas NÃO mexe no estoque
+            # Ajustes de receita
             for rem in observacoes.get("remover", []):
                 if rem["insumo_id"] in receita_final:
                     receita_final[rem["insumo_id"]] = max(
@@ -792,25 +800,27 @@ def cadastrar_venda():
                 receita_final[add["insumo_id"]] = receita_final.get(add["insumo_id"], 0) + add["qtd"] * 100
 
             receita_final_str_keys = {str(k): v for k, v in receita_final.items()}
-            valor_venda += float(lanche.valor_lanche)
 
-        # --- BEBIDA (SEM ESTOQUE) ---
-        if bebida_id:
-            bebida = db_session.query(Bebida).filter_by(id_bebida=bebida_id).first()
-            if not bebida:
-                return jsonify({"error": "Bebida não encontrada"}), 404
+        # =====================================================
+        # --------------------- BEBIDA -------------------------
 
-            valor_venda += float(bebida.valor)
 
+
+        # ----------------------------------------------------
+        # Nenhum item enviado
+        # ----------------------------------------------------
         if not lanche_id and not bebida_id:
             return jsonify({"error": "É necessário informar pelo menos um lanche ou uma bebida"}), 400
 
+        # =====================================================
+        # -------- SALVAR VENDA NO BANCO DE DADOS -------------
+        # =====================================================
         nova_venda = Venda(
             data_venda=data_venda,
             lanche_id=lanche_id,
             pessoa_id=pessoa_id,
             bebida_id=bebida_id,
-            valor_venda=valor_venda,
+            valor_venda=valor_venda,  # <-- AGORA SALVA CORRETAMENTE
             detalhamento=detalhamento,
             status_venda=True,
             endereco=endereco,
@@ -832,8 +842,10 @@ def cadastrar_venda():
         db_session.rollback()
         print("ERRO cadastrar_venda:", str(e))
         return jsonify({"error": str(e)}), 500
+
     finally:
         db_session.close()
+
 
 @app.route('/categorias', methods=['POST'])
 # @jwt_required()
@@ -1606,7 +1618,6 @@ def faturamento_mensal():
         {"mes": mes, "faturamento": round(valor, 2)}
         for mes, valor in sorted(faturamento.items())
     ]
-
     return jsonify(resposta)
 #
 
