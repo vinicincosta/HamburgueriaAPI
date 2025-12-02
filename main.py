@@ -1253,6 +1253,27 @@ def get_insumo_id(id_insumo):
     finally:
         db_session.close()
 
+@app.route('/categorias/categoria<id_categoria>', methods=['GET'])
+# @jwt_required()
+# @roles_required('admin')
+def listar_cateogira_by_id(id_categoria):
+    db_session = local_session()
+    try:
+        sql_categoria = select(Categoria).filter_by(id_categoria=Categoria.id_categoria)
+        resultado = db_session.execute(sql_categoria).scalar()
+        # pessoas = []
+        # for n in resultado_pessoas:
+        #     pessoas.append(n.serialize())
+        #     print(pessoas[-1])
+
+        return jsonify({
+            "categoria": resultado.serialize(),
+            "success": "Listado com sucesso"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)})
+    finally:
+        db_session.close()
 
 # EDITAR (PUT)
 @app.route('/pedidos/mesa', methods=['PUT'])
@@ -1421,7 +1442,7 @@ def editar_lanche(id_lanche):
         db_session.close()
 
 
-@app.route('/insumos/<id_insumo>', methods=['PUT'])
+@app.route('/insumos/<id_insumo>', methods=['PUT']) #
 # @jwt_required()
 def editar_insumo(id_insumo):
     db_session = local_session()
@@ -1463,7 +1484,7 @@ def editar_insumo(id_insumo):
         db_session.close()
 
 
-@app.route('/categorias/<id_categoria>', methods=['PUT'])
+@app.route('/categorias/<id_categoria>', methods=['PUT']) #
 # @jwt_required()
 def editar_categoria(id_categoria):
     db_session = local_session()
@@ -1509,7 +1530,7 @@ def editar_categoria(id_categoria):
         db_session.close()
 
 
-@app.route('/pessoas/<id_pessoa>', methods=['PUT'])
+@app.route('/pessoas/<id_pessoa>', methods=['PUT']) #
 # @jwt_required()
 def editar_pessoa(id_pessoa):
     db_session = local_session()
