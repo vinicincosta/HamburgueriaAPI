@@ -18,24 +18,27 @@ app.config['JWT_SECRET_KEY'] = "03050710"
 jwt = JWTManager(app)
 
 
-# Login
-# def admin_required(fn):
-#     @wraps(fn)
-#     def wrapper(*args, **kwargs):
-#         current_user = get_jwt_identity()
-#         print(f'c_user:{current_user}')
-#         db = local_session()
-#         try:
-#             sql = select(Pessoa).where(Pessoa.email == current_user)
-#             user = db.execute(sql).scalar()
-#             print(f'teste admin: {user and user.papel == "admin"} {user.papel}')
-#             if user and user.papel == "admin":
-#                 return fn(*args, **kwargs)
-#             return jsonify(msg="Acesso negado: Requer privilégios de administrador"), 403
-#         finally:
-#             db.close()
-#     return wrapper
 def roles_required(*roles):
+    """
+        Decorator: roles_required(roles...)
+        ----------------------------------------------------
+        Restringe o acesso da rota aos papéis (roles) informados.
+
+         Como funciona:
+            - Lê o JWT atual
+            - Busca o usuário pelo email (identity)
+            - Verifica se o papel do usuário está na lista de roles permitidos
+            - Caso positivo → permite o acesso
+            - Caso negativo → retorna 403
+
+         Exemplo de uso:
+            @app.route('/admin')
+            @jwt_required()
+            @roles_required('admin', 'gerente')
+            def rota_admin():
+                return "Somente admins"
+        """
+
     def wrapper(fn):
         @wraps(fn)
         def decorated(*args, **kwargs):
@@ -57,6 +60,27 @@ def roles_required(*roles):
 
 @app.route('/login', methods=['POST'])
 def login():
+    """
+        POST /login
+        ----------------------------------------------------
+        Realiza login do usuário e retorna:
+        - token de acesso (JWT)
+        - papel do usuário
+        - nome do usuário
+
+         Corpo da requisição:
+        {
+            "email": "usuario@email.com",
+            "senha": "123456"
+        }
+
+         Exemplo de resposta:
+        {
+            "access_token": "<TOKEN_JWT>",
+            "papel": "admin",
+            "nome": "João Silva"
+        }
+        """
     dados = request.get_json()
     email = dados.get('email')
     senha = dados.get('senha')
@@ -90,6 +114,29 @@ def login():
 # @jwt_required()
 # @roles_required('admin')
 def cadastro():
+    """
+        POST /cadastro_pessoas_login
+        ----------------------------------------------------
+        Cadastra um novo usuário no sistema.
+        Se papel não for informado, assume "cliente".
+        CPF somente é usado se papel = "admin".
+
+         Corpo da requisição:
+        {
+            "nome_pessoa": "Maria",
+            "cpf": "12345678901",
+            "email": "maria@gmail.com",
+            "papel": "admin",
+            "senha": "123456",
+            "salario": 2500
+        }
+
+         Exemplo de resposta:
+        {
+            "msg": "Usuário criado com sucesso",
+            "user_id": 7
+        }
+        """
     dados = request.get_json()
     nome_pessoa = dados['nome_pessoa']
     cpf = dados['cpf']
@@ -145,6 +192,39 @@ def cadastro():
 
 @app.route('/update_insumo/<int:id_insumo>', methods=['PUT'])
 def update_insumo(id_insumo):
+    """
+        PUT /update_insumo/<id_insumo>
+        ----------------------------------------------------
+        Atualiza os dados de um insumo existente.
+        Apenas os campos enviados no JSON são modificados.
+
+         Parâmetro:
+            id_insumo (int) — ID do insumo a ser atualizado.
+
+         Corpo da requisição (opcional):
+        {
+            "nome_insumo": "Queijo Mussarela",
+            "qtd_insumo": 12,
+            "custo": 5.80,
+            "categoria_id": 1
+        }
+
+         Regras automáticas:
+            - Se quantidade <= 5 → todos os lanches que usam esse insumo serão desativados.
+
+         Exemplo de resposta:
+        {
+            "success": true,
+            "message": "Insumo atualizado com sucesso.",
+            "insumo": {
+                "id_insumo": 3,
+                "nome_insumo": "Queijo Mussarela",
+                "qtd_insumo": 12,
+                "categoria_id": 1
+            }
+        }
+        """
+
     db_session = local_session()
     try:
         # Se não houver JSON, define um dicionário vazio
@@ -190,6 +270,39 @@ def update_insumo(id_insumo):
 
 @app.route('/update_bebida/<int:id_bebida>', methods=['PUT'])
 def update_bebida(id_bebida):
+    """
+        PUT /update_bebida/<id_bebida>
+        ----------------------------------------------------
+        Atualiza os dados de uma bebida.
+        Apenas os campos enviados no JSON serão modificados.
+
+         Parâmetro:
+            id_bebida (int)
+
+         Corpo da requisição (opcional):
+        {
+            "nome_bebida": "Guaraná",
+            "descricao": "350ml",
+            "valor": 6.50,
+            "quantidade": 20,
+            "categoria": "Refrigerante"
+        }
+
+        Regra automática:
+            - Se quantidade > 5 → status_bebida = True
+            - Caso contrário → status_bebida = False
+
+        Exemplo de resposta:
+        {
+            "success": true,
+            "message": "Bebida atualizada com sucesso.",
+            "bebida": {
+                "id_bebida": 4,
+                "nome_bebida": "Guaraná",
+                "quantidade": 20
+            }
+        }
+        """
     db_session = local_session()
     try:
         data = request.get_json(silent=True) or {}
@@ -229,6 +342,27 @@ def update_bebida(id_bebida):
 # Cadastro (POST)
 @app.route('/usuarios', methods=['POST'])
 def cadastro_usuarios():
+    """
+        API para cadastrar novos usuários no sistema.
+
+        # Endpoint:
+        POST /usuarios
+
+        ## Corpo da Requisição (JSON)
+        {
+            "nome_pessoa": "Carlos Souza",
+            "email": "carlos@email.com",
+            "papel": "cliente",
+            "senha": "123456",
+            "cpf": "00011122233"
+        }
+
+        ## Resposta (JSON)
+        {
+            "msg": "Usuário criado com sucesso",
+            "user_id": 12
+        }
+        """
     dados = request.get_json()
     nome_pessoa = dados['nome_pessoa']
     email = dados['email']
@@ -267,6 +401,25 @@ def cadastro_usuarios():
 # @jwt_required()
 # @roles_required('cliente', 'garcom', 'cozinha','admin')
 def cadastrar_lanche():
+    """
+       API para cadastrar um novo lanche.
+
+       # Endpoint:
+       POST /lanches
+
+       ## Corpo da Requisição (JSON)
+       {
+           "nome_lanche": "X-Burguer",
+           "descricao_lanche": "Pão, carne, queijo",
+           "valor_lanche": 25.90
+       }
+
+       ## Resposta (JSON)
+       {
+           "success": "Cadastrado com sucesso",
+           "lanches": { ... }
+       }
+       """
     db_session = local_session()
     try:
         dados_lanche = request.get_json()
@@ -304,6 +457,27 @@ def cadastrar_lanche():
 # @jwt_required()
 # @roles_required('admin')
 def cadastrar_entrada():
+    """
+        API para registrar entrada de estoque de insumos ou bebidas.
+
+        # Endpoint:
+        POST /entradas
+
+        ## Corpo da Requisição (JSON)
+        {
+            "qtd_entrada": 10,
+            "data_entrada": "2025-03-20",
+            "nota_fiscal": "NF123",
+            "valor_entrada": 150.0,
+            "insumo_id": 2
+        }
+
+        ## Resposta (JSON)
+        {
+            "success": "Entrada cadastrada com sucesso",
+            "entrada": { ... }
+        }
+        """
     db_session = local_session()
     try:
         dados = request.get_json()
@@ -380,6 +554,26 @@ def cadastrar_entrada():
 
 @app.route("/bebidas", methods=["POST"])
 def cadastrar_bebida():
+    """
+        API para cadastrar uma bebida.
+
+        # Endpoint:
+        POST /bebidas
+
+        ## Corpo da Requisição (JSON)
+        {
+            "nome_bebida": "Coca-Cola",
+            "descricao": "350ml",
+            "valor": 6.50,
+            "id_categoria": 3
+        }
+
+        ## Resposta (JSON)
+        {
+            "success": "Bebida cadastrada com sucesso",
+            "bebida": { ... }
+        }
+        """
     db_session = local_session()
     try:
         dados = request.json()
@@ -403,6 +597,32 @@ def cadastrar_bebida():
 
 @app.route('/pedidos', methods=['POST'])
 def cadastrar_pedido():
+    """
+        API para registrar pedidos (Mesa ou Delivery).
+
+        # Endpoint:
+        POST /pedidos
+
+        ## Corpo da Requisição (JSON)
+        {
+            "numero_mesa": 5,
+            "id_pessoa": 1,
+            "id_lanche": 2,
+            "id_bebida": 3,
+            "qtd_lanche": 2,
+            "detalhamento": "Sem cebola",
+            "observacoes": {
+                "adicionar": [{"insumo_id": 1, "qtd": 1}],
+                "remover": [{"insumo_id": 3, "qtd": 1}]
+            }
+        }
+
+        ## Resposta (JSON)
+        {
+            "success": "2 pedido(s) registrado(s) com sucesso (Mesa 5)",
+            "pedidos": [ ... ]
+        }
+        """
     db_session = local_session()
     try:
         dados = request.get_json()
@@ -534,6 +754,25 @@ def cadastrar_pedido():
 # @jwt_required()
 # @roles_required('admin')
 def cadastrar_insumo():
+    """
+       API para cadastrar novos insumos utilizados nos lanches.
+
+       # Endpoint:
+       POST /insumos
+
+       ## Corpo da Requisição (JSON)
+       {
+           "nome_insumo": "Tomate",
+           "categoria_id": 1,
+           "custo": 5.40
+       }
+
+       ## Resposta (JSON)
+       {
+           "success": "Insumo cadastrado com sucesso",
+           "insumos": { ... }
+       }
+       """
     db_session = local_session()
     try:
         dados_insumo = request.get_json()
@@ -570,8 +809,26 @@ def cadastrar_insumo():
 # @jwt_required()
 # @roles_required('admin')
 def cadastrar_lanche_insumo():
-    dados = request.json
+    """
+        API para vincular um insumo à receita de um lanche.
 
+        # Endpoint:
+        POST /lanche_insumos
+
+        ## Corpo da Requisição (JSON)
+        {
+            "lanche_id": 1,
+            "insumo_id": 3,
+            "qtd_insumo": 100
+        }
+
+        ## Resposta (JSON)
+        {
+            "success": "Insumo adicionado à receita do lanche com sucesso",
+            "lanche_insumo": { ... }
+        }
+        """
+    dados = request.json
     # Verificar campos obrigatórios
     campos_obrigatorios = ["lanche_id", "insumo_id", "qtd_insumo"]
     if not all(campo in dados for campo in campos_obrigatorios):
@@ -628,124 +885,36 @@ def cadastrar_lanche_insumo():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# @app.route('/vendas', methods=['POST'])
-# def cadastrar_venda():
-#     db_session = local_session()
-#     try:
-#         dados = request.get_json()
-#         campos = ["data_venda", "pessoa_id", "qtd_lanche", "detalhamento"]
-#
-#         # Verificação dos campos obrigatórios
-#         if not all(campo in dados for campo in campos):
-#             return jsonify({"error": "Campos obrigatórios não informados"}), 400
-#
-#         lanche_id = dados.get("lanche_id")
-#         pessoa_id = dados["pessoa_id"]
-#         bebida_id = dados.get("bebida_id")
-#         data_venda = dados["data_venda"]
-#         detalhamento = dados["detalhamento"]
-#         qtd_lanche = int(dados["qtd_lanche"])
-#         endereco = dados.get("endereco", "Presencial")
-#         forma_pagamento = dados.get("forma_pagamento", "Indefinido")
-#         observacoes = dados.get("observacoes", {"adicionar": [], "remover": []})
-#
-#         # Verifica pessoa
-#         pessoa = db_session.query(Pessoa).filter_by(id_pessoa=pessoa_id).first()
-#         if not pessoa:
-#             return jsonify({"error": "Pessoa não encontrada"}), 404
-#
-#         # FCorrigido: se vier null ou string vazia, transforma em None
-#         lanche_id = lanche_id if lanche_id not in ("", None, "null") else None
-#         bebida_id = bebida_id if bebida_id not in ("", None, "null") else None
-#
-#         receita_final_str_keys = {}
-#         valor_venda = 0.0
-#
-#         #  Caso de lanche
-#         if lanche_id:
-#             lanche = db_session.query(Lanche).filter_by(id_lanche=lanche_id).first()
-#             if not lanche:
-#                 return jsonify({"error": "Lanche não encontrado"}), 404
-#
-#             receita = db_session.query(Lanche_insumo).filter_by(lanche_id=lanche_id).all()
-#             if not receita:
-#                 return jsonify({"error": "Esse lanche não tem receita cadastrada"}), 400
-#
-#             receita_final = {item.insumo_id: item.qtd_insumo for item in receita}
-#
-#             # Ajustes personalizados
-#             for rem in observacoes.get("remover", []):
-#                 if rem["insumo_id"] in receita_final:
-#                     receita_final[rem["insumo_id"]] = max(
-#                         0, receita_final[rem["insumo_id"]] - rem["qtd"] * 100
-#                     )
-#
-#             for add in observacoes.get("adicionar", []):
-#                 receita_final[add["insumo_id"]] = receita_final.get(add["insumo_id"], 0) + add["qtd"] * 100
-#
-#             # Validação de estoque
-#             for insumo_id, qtd in receita_final.items():
-#                 insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
-#                 if not insumo:
-#                     return jsonify({"error": f"Insumo ID {insumo_id} não encontrado"}), 404
-#                 if insumo.qtd_insumo < qtd * qtd_lanche:
-#                     return jsonify({"error": f"Estoque insuficiente para: {insumo.nome_insumo}"}), 400
-#
-#             # Atualiza estoque
-#             for insumo_id, qtd in receita_final.items():
-#                 insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
-#                 insumo.qtd_insumo -= qtd * qtd_lanche
-#                 db_session.add(insumo)
-#
-#             receita_final_str_keys = {str(k): v for k, v in receita_final.items()}
-#             valor_venda += float(lanche.valor_lanche)
-#
-#         #  Caso de bebida
-#         if bebida_id:
-#             bebida = db_session.query(Bebida).filter_by(id_bebida=bebida_id).first()
-#             if not bebida:
-#                 return jsonify({"error": "Bebida não encontrada"}), 404
-#
-#             valor_venda += float(bebida.valor)
-#
-#         # Nenhum item informado
-#         if not lanche_id and not bebida_id:
-#             return jsonify({"error": "É necessário informar pelo menos um lanche ou uma bebida"}), 400
-#
-#         # Monta objeto da venda corretamente
-#         nova_venda = Venda(
-#             data_venda=data_venda,
-#             lanche_id=lanche_id,  # pode ser None
-#             pessoa_id=pessoa_id,
-#             bebida_id=bebida_id,  # pode ser None
-#             valor_venda=valor_venda,
-#             detalhamento=detalhamento,
-#             status_venda=True,
-#             endereco=endereco,
-#             forma_pagamento=forma_pagamento,
-#             ajustes_receita=json.dumps(receita_final_str_keys)
-#         )
-#
-#         nova_venda.save(db_session)
-#
-#         venda_dict = nova_venda.serialize()
-#         venda_dict["ajustes_receita"] = {int(k): v for k, v in receita_final_str_keys.items()}
-#
-#         return jsonify({
-#             "success": "Venda registrada com sucesso",
-#             "venda": venda_dict
-#         }), 201
-#
-#     except Exception as e:
-#         db_session.rollback()
-#         print("ERRO cadastrar_venda:", str(e))
-#         return jsonify({"error": str(e)}), 500
-#     finally:
-#         db_session.close()
 
 
 @app.route('/vendas', methods=['POST'])
 def cadastrar_venda():
+    """
+        API para registrar vendas feitas no balcão ou delivery.
+
+        # Endpoint:
+        POST /vendas
+
+        ## Corpo da Requisição (JSON)
+        {
+            "data_venda": "2025-03-20 18:55",
+            "pessoa_id": 1,
+            "lanche_id": 2,
+            "bebida_id": 1,
+            "qtd_lanche": 1,
+            "detalhamento": "Sem cebola",
+            "observacoes": {...},
+            "valor_venda": 32.50,
+            "endereco": "Rua Exemplo",
+            "forma_pagamento": "Pix"
+        }
+
+        ## Resposta (JSON)
+        {
+            "success": "Venda registrada com sucesso",
+            "venda": { ... }
+        }
+        """
     db_session = local_session()
     try:
         dados = request.get_json()
@@ -780,9 +949,8 @@ def cadastrar_venda():
 
         receita_final_str_keys = {}
 
-        # =====================================================
         # ------ PROCESSAMENTO DO LANCHE (SEM BAIXA) ----------
-        # =====================================================
+
         if lanche_id:
             lanche = db_session.execute(select(Lanche).filter_by(id_lanche=lanche_id)).first()
             # lanche = db_session.query(Lanche).filter_by(id_lanche=lanche_id).first()
@@ -806,26 +974,19 @@ def cadastrar_venda():
 
             receita_final_str_keys = {str(k): v for k, v in receita_final.items()}
 
-        # =====================================================
-        # --------------------- BEBIDA -------------------------
-
-
-
-        # ----------------------------------------------------
         # Nenhum item enviado
-        # ----------------------------------------------------
+
         if not lanche_id and not bebida_id:
             return jsonify({"error": "É necessário informar pelo menos um lanche ou uma bebida"}), 400
 
-        # =====================================================
+
         # -------- SALVAR VENDA NO BANCO DE DADOS -------------
-        # =====================================================
         nova_venda = Venda(
             data_venda=data_venda,
             lanche_id=lanche_id,
             pessoa_id=pessoa_id,
             bebida_id=bebida_id,
-            valor_venda=valor_venda,  # <-- AGORA SALVA CORRETAMENTE
+            valor_venda=valor_venda,
             detalhamento=detalhamento,
             status_venda=True,
             endereco=endereco,
@@ -856,6 +1017,23 @@ def cadastrar_venda():
 # @jwt_required()
 # @roles_required('admin')
 def cadastrar_categoria():
+    """
+        API para cadastrar categorias de bebidas, lanches e insumos.
+
+        # Endpoint:
+        POST /categorias
+
+        ## Corpo da Requisição (JSON)
+        {
+            "nome_categoria": "Refrigerantes"
+        }
+
+        ## Resposta (JSON)
+        {
+            "success": "Categoria cadastrada com sucesso",
+            "categorias": { ... }
+        }
+        """
     db_session = local_session()
     try:
         dados_categoria = request.get_json()
@@ -890,10 +1068,29 @@ def cadastrar_categoria():
 
 @app.route('/pedidos', methods=['GET'])
 def pedidos():
+    """
+        GET /pedidos
+        ---------------------------
+        Retorna a lista de pedidos cadastrados.
+
+         Exemplo de resposta:
+        {
+            "pedidos": [
+                {
+                    "id_pedido": 1,
+                    "numero_da_mesa": 5,
+                    "id_lanche": 2,
+                    "id_bebida": 1,
+                    "detalhamento": "Sem cebola",
+                    "status": "em preparo"
+                }
+            ]
+        }
+        """
     try:
         db_session = local_session()
         # pedidos = db_session.query(Pedido).all()
-        pedidos = db_session.execute(select(Pedido)).all()
+        pedidos = db_session.execute(select(Pedido)).scalars().all()
         resultado = []
         for p in pedidos:
             resultado.append(p.serialize())
@@ -907,6 +1104,27 @@ def pedidos():
 # @jwt_required()
 # @roles_required('cozinha', 'admin')
 def listar_receitas_vendas():
+    """
+       GET /vendas/receitas
+       ---------------------------------
+       Retorna todas as vendas ativas com suas receitas completas,
+       incluindo ajustes feitos na venda.
+
+        Exemplo de resposta:
+       {
+           "vendas_receitas": [
+               {
+                   "venda_id": 10,
+                   "lanche": "X-Burger",
+                   "pessoa_id": 4,
+                   "receita_completa": [
+                       {"insumo_id": 1, "nome": "Pão", "quantidade": 1},
+                       {"insumo_id": 2, "nome": "Carne", "quantidade": 1}
+                   ]
+               }
+           ]
+       }
+       """
     db_session = local_session()
     try:
         # Pega apenas vendas ativas
@@ -962,6 +1180,24 @@ def listar_receitas_vendas():
 # @jwt_required()
 # @roles_required('cliente', 'garcom', 'cozinha', 'admin')
 def listar_lanches():
+    """
+        GET /lanches
+        ---------------------------
+        Lista todos os lanches cadastrados.
+
+         Exemplo de resposta:
+        {
+            "lanches": [
+                {
+                    "id_lanche": 1,
+                    "nome_lanche": "X-Burger",
+                    "descricao_lanche": "Pão, carne e queijo",
+                    "valor_lanche": 25.90
+                }
+            ],
+            "success": "Listado com sucesso"
+        }
+        """
     db_session = local_session()
     try:
         sql_lanche = select(Lanche)
@@ -1008,6 +1244,25 @@ def listar_bebidas():
 # @jwt_required()
 # @roles_required('admin')
 def listar_insumos():
+    """
+        GET /insumos
+        ---------------------------
+        Lista todos os insumos cadastrados.
+
+         Exemplo de resposta:
+        {
+            "insumos": [
+                {
+                    "id_insumo": 3,
+                    "nome_insumo": "Queijo",
+                    "qtd_insumo": 20,
+                    "validade": "2025-04-20",
+                    "categoria_id": 1
+                }
+            ],
+            "success": "Listado com sucesso"
+        }
+        """
     db_session = local_session()
     try:
 
@@ -1031,6 +1286,24 @@ def listar_insumos():
 # @jwt_required()
 # @roles_required('admin')
 def listar_lanche_insumos():
+    """
+       GET /lanche_insumos
+       ---------------------------
+       Lista a tabela que relaciona lanches e insumos.
+
+       Exemplo de resposta:
+       {
+           "lanche_insumos": [
+               {
+                   "id": 1,
+                   "lanche_id": 2,
+                   "insumo_id": 3,
+                   "qtd_insumo": 1
+               }
+           ],
+           "success": "Listado com sucesso"
+       }
+       """
     db_session = local_session()
     try:
 
@@ -1055,6 +1328,24 @@ def listar_lanche_insumos():
 # @jwt_required()
 # @roles_required('cozinha', 'admin')
 def listar_receita_lanche(lanche_id):
+    """
+       GET /lanche_receita/<lanche_id>
+       ---------------------------------------------
+       Retorna a receita base de um lanche específico.
+
+        Parâmetro:
+           lanche_id (int) — ID do lanche.
+
+        Exemplo de resposta:
+       {
+           "lanche_id": 2,
+           "nome_lanche": "X-Burger",
+           "receita": [
+               {"insumo_id": 1, "nome_insumo": "Pão", "quantidade_base": 1},
+               {"insumo_id": 2, "nome_insumo": "Carne", "quantidade_base": 1}
+           ]
+       }
+       """
     db_session = local_session()
     try:
         # Verifica se o lanche existe
@@ -1101,6 +1392,22 @@ def listar_receita_lanche(lanche_id):
 # @jwt_required()
 # @roles_required('admin')
 def listar_categorias():
+    """
+       GET /categorias
+       ---------------------------
+       Lista todas as categorias de insumos.
+
+        Exemplo de resposta:
+       {
+           "categorias": [
+               {
+                   "id_categoria": 1,
+                   "nome_categoria": "Carnes"
+               }
+           ],
+           "success": "Listado com sucesso"
+       }
+       """
     db_session = local_session()
     try:
         sql_categorias = select(Categoria)
@@ -1123,6 +1430,25 @@ def listar_categorias():
 # @jwt_required()
 # @roles_required('admin')
 def listar_entradas():
+    """
+    GET /entradas
+    ---------------------------
+    Lista todas as entradas de estoque registradas.
+
+     Exemplo de resposta:
+    {
+        "entradas": [
+            {
+                "id_entrada": 5,
+                "qtd_entrada": 10,
+                "data_entrada": "2025-03-10",
+                "valor_entrada": 150,
+                "insumo_id": 2
+            }
+        ],
+        "success": "Listado com sucesso"
+    }
+    """
     db_session = local_session()
     try:
         sql_entradas = select(Entrada)
@@ -1145,6 +1471,26 @@ def listar_entradas():
 # @jwt_required()
 # @roles_required('admin')
 def listar_vendas_id(id_mesa):
+    """
+      GET /vendas_id/<id_mesa>
+      -----------------------------------
+      Retorna a venda vinculada a uma mesa específica.
+
+       Parâmetro:
+          id_mesa (int)
+
+       Exemplo de resposta:
+      {
+          "sucesso": "venda encontrada com sucesso",
+          "id_venda": 12,
+          "data_venda": "2025-03-10",
+          "valor_venda": 39.90,
+          "status_venda": true,
+          "mesa": 5,
+          "lanche_id": 1,
+          "pessoa_id": 3
+      }
+      """
     db_session = local_session()
     try:
         sql_vendas = db_session.execute(select(Venda).where(mesa=id_mesa)).scalar()
@@ -1169,6 +1515,23 @@ def listar_vendas_id(id_mesa):
 # @jwt_required()
 # @roles_required('admin')
 def listar_vendas():
+    """
+     GET /vendas
+     ---------------------------
+     Lista todas as vendas cadastradas.
+
+      Exemplo de resposta:
+     {
+         "vendas": [
+             {
+                 "id_venda": 12,
+                 "mesa": 5,
+                 "valor_venda": 39.90,
+                 "status_venda": true
+             }
+         ]
+     }
+     """
     db_session = local_session()
     try:
         sql_vendas = select(Venda).order_by(Venda.id_venda.desc())
@@ -1191,6 +1554,24 @@ def listar_vendas():
 # @jwt_required()
 # @roles_required('admin')
 def listar_pessoas():
+    """
+       GET /pessoas
+       ---------------------------
+       Lista todas as pessoas cadastradas no sistema.
+
+       Exemplo de resposta:
+       {
+           "pessoas": [
+               {
+                   "id_pessoa": 1,
+                   "nome_pessoa": "João Silva",
+                   "email": "joao@gmail.com",
+                   "papel": "garcom"
+               }
+           ],
+           "success": "Listado com sucesso"
+       }
+       """
     db_session = local_session()
     try:
         sql_pessoa = select(Pessoa)
@@ -1213,6 +1594,21 @@ def listar_pessoas():
 # @jwt_required()
 # @roles_required('admin')
 def listar_pessoa_by_id(id_pessoa):
+    """
+        GET /pessoas/pessoa<id_pessoa>
+        -----------------------------------
+        Retorna uma pessoa específica pelo ID.
+
+        🔹 Exemplo de resposta:
+        {
+            "pessoa": {
+                "id_pessoa": 3,
+                "nome_pessoa": "Maria",
+                "email": "maria@gmail.com"
+            },
+            "success": "Listado com sucesso"
+        }
+        """
     db_session = local_session()
     try:
         sql_pessoa = select(Pessoa).filter_by(id_pessoa=Pessoa.id_pessoa)
@@ -1234,6 +1630,21 @@ def listar_pessoa_by_id(id_pessoa):
 # @jwt_required()
 # @roles_required('cozinha', 'admin')
 def get_insumo_id(id_insumo):
+    """
+      GET /get_insumo_id/<id_insumo>
+      -----------------------------------
+      Retorna as informações de um insumo específico.
+
+      Exemplo de resposta:
+      {
+          "success": "Insumo encontrado com sucesso",
+          "id_insumo": 3,
+          "nome_insumo": "Tomate",
+          "qtd_insumo": 12,
+          "validade": "2025-04-12",
+          "categoria_id": 1
+      }
+      """
     db_session = local_session()
     try:
         insumo = db_session.execute(select(Insumo).filter_by(id=int(id_insumo))).scalar()
@@ -1262,6 +1673,20 @@ def get_insumo_id(id_insumo):
 # @jwt_required()
 # @roles_required('admin')
 def listar_cateogira_by_id(id_categoria):
+    """
+       GET /categorias/categoria<id_categoria>
+       ------------------------------------------------
+       Retorna uma categoria específica.
+
+        Exemplo de resposta:
+       {
+           "categoria": {
+               "id_categoria": 1,
+               "nome_categoria": "Verduras"
+           },
+           "success": "Listado com sucesso"
+       }
+       """
     db_session = local_session()
     try:
         sql_categoria = select(Categoria).filter_by(id_categoria=Categoria.id_categoria)
@@ -1283,6 +1708,33 @@ def listar_cateogira_by_id(id_categoria):
 # EDITAR (PUT)
 @app.route('/pedidos/mesa', methods=['PUT'])
 def editar_pedidos_numero_mesa():  # Função para fechar a conta
+    """
+       PUT /pedidos/mesa
+       ----------------------------------------------------
+       Retorna todos os pedidos associados a uma mesa específica.
+
+        Corpo da requisição (JSON):
+       {
+           "numero_mesa": 7
+       }
+
+        O que faz:
+           - Recebe o número da mesa.
+           - Busca no banco todos os pedidos daquela mesa.
+           - Serializa e retorna os pedidos encontrados.
+
+        Exemplo de resposta:
+       {
+           "pedidos": [
+               {
+                   "id_pedido": 3,
+                   "numero_mesa": 7,
+                   "lanche_id": 2,
+                   "status": true
+               }
+           ]
+       }
+       """
     try:
         db_session = local_session()
         dados = request.get_json()
@@ -1300,16 +1752,52 @@ def editar_pedidos_numero_mesa():  # Função para fechar a conta
 
 @app.route('/pedidos/<id_pedido>', methods=['PUT'])
 def editar_pedido_status(id_pedido): # editar pedido status
-    # try:
-    #     db_session = local_session()
-    #     dados = request.get_json()
-    #     pedido = db_session.execute(select(Pedido).filter_by(id_pedido=int(id_pedido))).scalar()
-    #     if 'status' in dados:
-    #         pedido.status = dados['status']
-    #     if 'status_fechado' in dados:
-    #         pedido.status_fechado = dados['status_fechado']
-    # except Exception as e:
-    #     return jsonify({"error":f'{e}'})
+    """
+       PUT /pedidos/<id_pedido>
+       ----------------------------------------------------
+       Registra a venda de um pedido, ajusta estoque e gera movimentos
+       de venda relacionados ao pedido.
+
+        Parâmetro:
+           id_pedido (int)
+
+        Corpo esperado:
+       {
+           "data_venda": "2025-01-25 12:30:00",
+           "lanche_id": 3,
+           "pessoa_id": 5,
+           "qtd_lanche": 2,
+           "detalhamento": "Pedido mesa 7",
+           "endereco": "Retirada no balcão",
+           "forma_pagamento": "Crédito",
+           "observacoes": {
+               "adicionar": [{"insumo_id": 1, "qtd": 1}],
+               "remover": [{"insumo_id": 2, "qtd": 1}]
+           }
+       }
+
+        O que faz:
+           - Valida campos necessários.
+           - Verifica lanche e pessoa.
+           - Carrega receita base do lanche.
+           - Ajusta insumos conforme observações.
+           - Verifica estoque.
+           - Dá baixa no estoque.
+           - Cria registros de venda.
+           - Retorna as vendas geradas.
+
+        Exemplo de resposta:
+       {
+           "success": "2 vendas registradas com sucesso",
+           "vendas": [
+               {
+                   "id_venda": 20,
+                   "valor_venda": 18.50,
+                   "ajustes_receita": { "1": 200, "3": 100 }
+               }
+           ]
+       }
+       """
     db_session = local_session()
     try:
         dados = request.get_json()
@@ -1411,6 +1899,33 @@ def editar_pedido_status(id_pedido): # editar pedido status
 @app.route('/lanches/<id_lanche>', methods=['PUT'])
 # @jwt_required()
 def editar_lanche(id_lanche):
+    """
+       PUT /lanches/<id_lanche>
+       ----------------------------------------------------
+       Edita as informações de um lanche existente.
+
+        Parâmetro:
+           id_lanche (int)
+
+        Corpo esperado:
+       {
+           "nome_lanche": "X-Burguer",
+           "descricao_lanche": "Pão, carne e queijo",
+           "valor_lanche": 15.90
+       }
+
+        O que faz:
+           - Verifica se o lanche existe.
+           - Valida campos obrigatórios.
+           - Atualiza nome, descrição e valor.
+           - Salva e retorna o lanche atualizado.
+
+        Exemplo de resposta:
+       {
+           "success": "lanche editado com sucesso",
+           "lanches": { ...dados... }
+       }
+       """
     db_session = local_session()
     try:
         dados_editar_lanche = request.get_json()
@@ -1454,6 +1969,32 @@ def editar_lanche(id_lanche):
 @app.route('/insumos/<id_insumo>', methods=['PUT']) #
 # @jwt_required()
 def editar_insumo(id_insumo):
+    """
+        PUT /insumos/<id_insumo>
+        ----------------------------------------------------
+        Edita informações de um insumo.
+
+         Parâmetro:
+            id_insumo (int)
+
+         Corpo esperado:
+        {
+            "nome_insumo": "Tomate",
+            "categoria_id": 1
+        }
+
+         O que faz:
+            - Verifica se o insumo existe.
+            - Confere campos obrigatórios.
+            - Atualiza nome e categoria.
+            - Retorna insumo atualizado.
+
+         Exemplo de resposta:
+        {
+            "success": "insumo editado com sucesso",
+            "insumos": { ... }
+        }
+        """
     db_session = local_session()
     try:
         dados_editar_insumo = request.get_json()
@@ -1496,6 +2037,31 @@ def editar_insumo(id_insumo):
 @app.route('/categorias/<id_categoria>', methods=['PUT']) #
 # @jwt_required()
 def editar_categoria(id_categoria):
+    """
+        PUT /categorias/<id_categoria>
+        ----------------------------------------------------
+        Edita o nome de uma categoria.
+
+         Parâmetro:
+            id_categoria (int)
+
+         Corpo esperado:
+        {
+            "nome_categoria": "Bebidas"
+        }
+
+         O que faz:
+            - Valida se a categoria existe.
+            - Confere campo obrigatório.
+            - Atualiza nome.
+            - Retorna categoria atualizada.
+
+         Exemplo de resposta:
+        {
+            "success": "categoria editada com sucesso",
+            "categorias": { ... }
+        }
+        """
     db_session = local_session()
     try:
         dados_editar_categoria = request.get_json()
@@ -1542,6 +2108,37 @@ def editar_categoria(id_categoria):
 @app.route('/pessoas/<id_pessoa>', methods=['PUT']) #
 # @jwt_required()
 def editar_pessoa(id_pessoa):
+    """
+       PUT /pessoas/<id_pessoa>
+       ----------------------------------------------------
+       Edita os dados completos de uma pessoa.
+
+        Parâmetro:
+           id_pessoa (int)
+
+        Corpo esperado:
+       {
+           "nome_pessoa": "João",
+           "cpf": "12345678900",
+           "salario": 2200,
+           "papel": "garcom",
+           "senha_hash": "HASH...",
+           "email": "teste@gmail.com",
+           "status_pessoa": "Ativo"
+       }
+
+        O que faz:
+           - Valida existência da pessoa.
+           - Confere todos os campos obrigatórios.
+           - Atualiza dados cadastrados.
+           - Retorna dados atualizados.
+
+        Exemplo:
+       {
+           "success": "Pessoa editada com sucesso",
+           "pessoas": { ... }
+       }
+       """
     db_session = local_session()
     try:
         dados_editar_pessoa = request.get_json()
@@ -1589,6 +2186,27 @@ def editar_pessoa(id_pessoa):
 @app.route("/lanche_insumo", methods=["DELETE"])
 # @jwt_required()
 def deletar_lanche_insumo():
+    """
+        DELETE /lanche_insumo
+        ----------------------------------------------------
+        Remove o vínculo entre um lanche e um insumo.
+
+         Corpo da requisição:
+        {
+            "lanche_id": 3,
+            "insumo_id": 8
+        }
+
+         O que faz:
+            - Verifica se o vínculo existe.
+            - Caso exista, remove.
+            - Retorna confirmação.
+
+         Exemplo de resposta:
+        {
+            "success": "Relacionamento removido com sucesso"
+        }
+        """
     dados = request.json
 
     # Verificação dos campos obrigatórios
@@ -1617,8 +2235,26 @@ def deletar_lanche_insumo():
 # grafco de vendas
 @app.route('/dados_grafico')
 def dados_grafico():
+    """
+       GET /dados_grafico
+       ----------------------------------------------------
+       Retorna dados agregados de vendas por mês
+       para exibição em gráficos de faturamento simples.
+
+        O que faz:
+           - Agrupa vendas por ano/mês.
+           - Soma valor total de vendas.
+           - Retorna labels e valores prontos para gráfico.
+
+        Exemplo de resposta:
+       {
+           "labels": ["11/2025", "12/2025"],
+           "values": [1200.50, 845.30]
+       }
+       """
     session = local_session()
-    vendas = session.query(Venda).all()
+    vendas = session.execute(select(Venda)).all()
+    # vendas = session.query(Venda).all()
 
     agrupado = {}
 
@@ -1648,7 +2284,26 @@ def dados_grafico():
 # grafico de faturamento
 @app.route("/faturamento_mensal", methods=["GET"])
 def faturamento_mensal():
+    """
+       GET /faturamento_mensal
+       ----------------------------------------------------
+       Retorna o faturamento mensal agregado (soma das vendas).
+
+        O que faz:
+           - Agrupa as vendas por mês.
+           - Soma valores do mês.
+           - Retorna lista com mês e valor.
+
+        Exemplo de resposta:
+       [
+           {"mes": "2025-10", "faturamento": 1540.00},
+           {"mes": "2025-11", "faturamento": 1870.90}
+       ]
+       """
     vendas = local_session.query(Venda).all()
+    db_session = local_session()
+    vendas = db_session.execute(select(Venda)).all()
+    # vendas = db_session.query(Venda).all()
 
     faturamento = defaultdict(float)
 
@@ -1674,14 +2329,29 @@ def faturamento_mensal():
 @app.route('/vendas_valor_por_funcionario', methods=['GET'])
 def vendas_valor_por_funcionario():
     """
-    Retorna, por funcionário:
-      - count: quantidade de vendas no dia
-      - total: soma de valor_venda no dia
-    Query params:
-      ?date=YYYY-MM-DD        (default: hoje)
-      ?role=garcom            (filtra por Pessoa.papel)
-      ?include_delivery=true  (default false -> exclui delivery)
-      ?include_zeros=true     (inclui funcionários com total 0)
+    GET /vendas_valor_por_funcionario
+    ----------------------------------------------------
+    Retorna, por funcionário, a quantidade de vendas e o
+    total vendido *no dia*.
+
+     Query Params:
+        ?date=YYYY-MM-DD      (default = hoje)
+        ?role=garcom
+        ?include_delivery=true/false
+        ?include_zeros=true/false
+
+     O que faz:
+        - Filtra vendas do dia.
+        - Opcionalmente filtra por papel.
+        - Agrupa por funcionário.
+        - Pode incluir funcionários com zero vendas.
+
+     Exemplo:
+    {
+        "labels": ["João", "Marcos"],
+        "counts": [3, 1],
+        "totals": [85.50, 22.00]
+    }
     """
     date_str = request.args.get('date') or datetime.now().strftime('%Y-%m-%d')
     role = request.args.get('role')                     # ex: "garcom"
@@ -1690,12 +2360,20 @@ def vendas_valor_por_funcionario():
 
     db = local_session()
     try:
-        # Base: vendas do dia (pega somente a parte YYYY-MM-DD)
-        qry = db.query(
-            Venda.pessoa_id.label('pessoa_id'),
-            func.count(Venda.id_venda).label('qtd'),
-            func.coalesce(func.sum(Venda.valor_venda), 0).label('total')
-        ).filter(func.substr(Venda.data_venda, 1, 10) == date_str)
+        # Base: vendas do dia (pega somente a parte YYYY-MM-
+        stmt = (
+            select(
+                Venda.pessoa_id.label('pessoa_id'),
+                func.count(Venda.id_venda).label('qtd'),
+                func.coalesce(func.sum(Venda.valor_venda), 0).label('total')
+            )
+            .filter_by(func.substr(Venda.data_venda, 1, 10) == date_str)
+        )
+        # qry = db.query(
+        #     Venda.pessoa_id.label('pessoa_id'),
+        #     func.count(Venda.id_venda).label('qtd'),
+        #     func.coalesce(func.sum(Venda.valor_venda), 0).label('total')
+        # ).filter(func.substr(Venda.data_venda, 1, 10) == date_str)
 
         # Se for para excluir deliveries e SE existir relacionamento via Pedido, usamos numero_mesa==0
         # Tentativa segura: checar se as colunas existem e o modelo Pedido está presente
@@ -1734,7 +2412,8 @@ def vendas_valor_por_funcionario():
         ids_present = set()
 
         for pessoa_id, qtd, total in rows:
-            pessoa = db.query(Pessoa).filter_by(id_pessoa=pessoa_id).first()
+            pessoa = db.execute(select(Pessoa).filter_by(id_pessoa=pessoa_id)).first()
+            # pessoa = db.query(Pessoa).filter_by(id_pessoa=pessoa_id).first()
             nome = pessoa.nome_pessoa if pessoa else f"ID {pessoa_id}"
             labels.append(nome)
             counts.append(int(qtd))
@@ -1743,7 +2422,8 @@ def vendas_valor_por_funcionario():
 
         # incluir zeros: buscar todos os funcionários com o papel (ou todos se role None)
         if include_zeros:
-            pquery = db.query(Pessoa)
+            pquery = db.execute(select(Pessoa))
+            # pquery = db.query(Pessoa)
             if role:
                 pquery = pquery.filter(func.lower(Pessoa.papel) == role.lower())
             pessoas = pquery.all()
@@ -1767,14 +2447,27 @@ def vendas_valor_por_funcionario():
 @app.route('/vendas_valor_por_funcionario_mes', methods=['GET'])
 def vendas_valor_por_funcionario_mes():
     """
-    Retorna, por funcionário:
-      - qtd: quantidade de vendas no mês
-      - total: soma do valor vendido no mês
-    Query params:
-      ?month=YYYY-MM  (default: mês atual)
-      ?role=garcom
-      ?include_delivery=true/false  (default false = exclui delivery)
-      ?include_zeros=true/false
+    GET /vendas_valor_por_funcionario_mes
+    ----------------------------------------------------
+    Retorna vendas agregadas por funcionário *no mês*.
+
+     Query Params:
+        ?month=YYYY-MM        (default = mês atual)
+        ?role=garcom
+        ?include_delivery=true/false
+        ?include_zeros=true/false
+
+     O que faz:
+        - Filtra vendas do mês.
+        - Agrupa por funcionário.
+        - Retorna quantidade e valor total vendido.
+
+     Exemplo:
+    {
+        "labels": ["João", "Marcos"],
+        "counts": [15, 8],
+        "totals": [420.00, 235.50]
+    }
     """
     month_str = request.args.get('month') or datetime.now().strftime('%Y-%m')
     role = request.args.get('role')
