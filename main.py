@@ -1217,23 +1217,6 @@ def listar_lanches():
 # @jwt_required()
 # @roles_required('cliente', 'garcom', 'cozinha', 'admin')
 def listar_bebidas():
-    """
-       GET /bebidas
-       ---------------------------
-       Lista todas as bebidas cadastradas.
-
-        Exemplo de resposta:
-       {
-           "bebidas": [
-               {
-                   "id_bebida": 1,
-                   "nome_bebida": "Coca-Cola",
-                   "valor_bebida": 6.00
-               }
-           ],
-           "success": "Listado com sucesso"
-       }
-       """
     db_session = local_session()
     try:
         sql_bebidas = select(Bebida)
@@ -2308,6 +2291,9 @@ def faturamento_mensal():
        ]
        """
     vendas = local_session.query(Venda).all()
+    db_session = local_session()
+    vendas = db_session.execute(select(Venda)).all()
+    # vendas = db_session.query(Venda).all()
 
     faturamento = defaultdict(float)
 
