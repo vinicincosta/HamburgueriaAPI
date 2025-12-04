@@ -1205,7 +1205,27 @@ def listar_pessoas():
     finally:
         db_session.close()
 
+@app.route('/pessoas/pessoa<id_pessoa>', methods=['GET'])
+# @jwt_required()
+# @roles_required('admin')
+def listar_pessoa_by_id(id_pessoa):
+    db_session = local_session()
+    try:
+        sql_pessoa = select(Pessoa).filter_by(id_pessoa=Pessoa.id_pessoa)
+        resultado_pessoa = db_session.execute(sql_pessoa).scalar()
+        # pessoas = []
+        # for n in resultado_pessoas:
+        #     pessoas.append(n.serialize())
+        #     print(pessoas[-1])
 
+        return jsonify({
+            "pessoa": resultado_pessoa.serialize(),
+            "success": "Listado com sucesso"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)})
+    finally:
+        db_session.close()
 @app.route('/get_insumo_id/<id_insumo>', methods=['GET'])
 # @jwt_required()
 # @roles_required('cozinha', 'admin')
@@ -1234,6 +1254,27 @@ def get_insumo_id(id_insumo):
     finally:
         db_session.close()
 
+@app.route('/categorias/categoria<id_categoria>', methods=['GET'])
+# @jwt_required()
+# @roles_required('admin')
+def listar_cateogira_by_id(id_categoria):
+    db_session = local_session()
+    try:
+        sql_categoria = select(Categoria).filter_by(id_categoria=Categoria.id_categoria)
+        resultado = db_session.execute(sql_categoria).scalar()
+        # pessoas = []
+        # for n in resultado_pessoas:
+        #     pessoas.append(n.serialize())
+        #     print(pessoas[-1])
+
+        return jsonify({
+            "categoria": resultado.serialize(),
+            "success": "Listado com sucesso"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)})
+    finally:
+        db_session.close()
 
 # EDITAR (PUT)
 @app.route('/pedidos/mesa', methods=['PUT'])
@@ -1254,7 +1295,7 @@ def editar_pedidos_numero_mesa():  # Função para fechar a conta
 
 
 @app.route('/pedidos/<id_pedido>', methods=['PUT'])
-def editar_pedido(id_pedido):
+def editar_pedido_status(id_pedido): # editar pedido status
     # try:
     #     db_session = local_session()
     #     dados = request.get_json()
@@ -1402,7 +1443,7 @@ def editar_lanche(id_lanche):
         db_session.close()
 
 
-@app.route('/insumos/<id_insumo>', methods=['PUT'])
+@app.route('/insumos/<id_insumo>', methods=['PUT']) #
 # @jwt_required()
 def editar_insumo(id_insumo):
     db_session = local_session()
@@ -1424,7 +1465,7 @@ def editar_insumo(id_insumo):
             return jsonify({"error": "Preencher todos os campos"}), 400
 
         else:
-            insumo_resultado.nome_lanche = dados_editar_insumo['nome_insumo']
+            insumo_resultado.nome_insumo = dados_editar_insumo['nome_insumo']
             insumo_resultado.categoria_id = dados_editar_insumo['categoria_id']
 
             insumo_resultado.save(db_session)
@@ -1444,7 +1485,7 @@ def editar_insumo(id_insumo):
         db_session.close()
 
 
-@app.route('/categorias/<id_categoria>', methods=['PUT'])
+@app.route('/categorias/<id_categoria>', methods=['PUT']) #
 # @jwt_required()
 def editar_categoria(id_categoria):
     db_session = local_session()
@@ -1490,7 +1531,7 @@ def editar_categoria(id_categoria):
         db_session.close()
 
 
-@app.route('/pessoas/<id_pessoa>', methods=['PUT'])
+@app.route('/pessoas/<id_pessoa>', methods=['PUT']) #
 # @jwt_required()
 def editar_pessoa(id_pessoa):
     db_session = local_session()
@@ -1518,7 +1559,7 @@ def editar_pessoa(id_pessoa):
             pessoa_resultado.papel = dados_editar_pessoa['papel']
             pessoa_resultado.senha_hash = dados_editar_pessoa['senha_hash']
             pessoa_resultado.email = dados_editar_pessoa['email']
-
+            pessoa_resultado.status_pessoa = dados_editar_pessoa['status_pessoa']
             pessoa_resultado.save(db_session)
 
             dicio = pessoa_resultado.serialize()
