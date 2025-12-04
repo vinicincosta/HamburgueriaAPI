@@ -1618,8 +1618,7 @@ def deletar_lanche_insumo():
 @app.route('/dados_grafico')
 def dados_grafico():
     session = local_session()
-    vendas = session.execute(select(Venda)).all()
-    # vendas = session.query(Venda).all()
+    vendas = session.query(Venda).all()
 
     agrupado = {}
 
@@ -1649,9 +1648,7 @@ def dados_grafico():
 # grafico de faturamento
 @app.route("/faturamento_mensal", methods=["GET"])
 def faturamento_mensal():
-    db_session = local_session()
-    vendas = db_session.execute(select(Venda)).all()
-    # vendas = db_session.query(Venda).all()
+    vendas = local_session.query(Venda).all()
 
     faturamento = defaultdict(float)
 
@@ -1693,20 +1690,12 @@ def vendas_valor_por_funcionario():
 
     db = local_session()
     try:
-        # Base: vendas do dia (pega somente a parte YYYY-MM-
-        stmt = (
-            select(
-                Venda.pessoa_id.label('pessoa_id'),
-                func.count(Venda.id_venda).label('qtd'),
-                func.coalesce(func.sum(Venda.valor_venda), 0).label('total')
-            )
-            .filter_by(func.substr(Venda.data_venda, 1, 10) == date_str)
-        )
-        # qry = db.query(
-        #     Venda.pessoa_id.label('pessoa_id'),
-        #     func.count(Venda.id_venda).label('qtd'),
-        #     func.coalesce(func.sum(Venda.valor_venda), 0).label('total')
-        # ).filter(func.substr(Venda.data_venda, 1, 10) == date_str)
+        # Base: vendas do dia (pega somente a parte YYYY-MM-DD)
+        qry = db.query(
+            Venda.pessoa_id.label('pessoa_id'),
+            func.count(Venda.id_venda).label('qtd'),
+            func.coalesce(func.sum(Venda.valor_venda), 0).label('total')
+        ).filter(func.substr(Venda.data_venda, 1, 10) == date_str)
 
         # Se for para excluir deliveries e SE existir relacionamento via Pedido, usamos numero_mesa==0
         # Tentativa segura: checar se as colunas existem e o modelo Pedido está presente
@@ -1745,8 +1734,7 @@ def vendas_valor_por_funcionario():
         ids_present = set()
 
         for pessoa_id, qtd, total in rows:
-            pessoa = db.execute(select(Pessoa).filter_by(id_pessoa=pessoa_id)).first()
-            # pessoa = db.query(Pessoa).filter_by(id_pessoa=pessoa_id).first()
+            pessoa = db.query(Pessoa).filter_by(id_pessoa=pessoa_id).first()
             nome = pessoa.nome_pessoa if pessoa else f"ID {pessoa_id}"
             labels.append(nome)
             counts.append(int(qtd))
@@ -1755,10 +1743,8 @@ def vendas_valor_por_funcionario():
 
         # incluir zeros: buscar todos os funcionários com o papel (ou todos se role None)
         if include_zeros:
-            pquery = db.execute(select(Pessoa))
-            # pquery = db.query(Pessoa)
+            pquery = db.query(Pessoa)
             if role:
-
                 pquery = pquery.filter(func.lower(Pessoa.papel) == role.lower())
             pessoas = pquery.all()
             for p in pessoas:
