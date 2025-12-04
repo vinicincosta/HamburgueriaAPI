@@ -447,11 +447,10 @@ def cadastrar_pedido():
 
         # --- Se tiver lanche, trata receita e estoque ---
         if id_lanche:
-            lanche = db_session.query(Lanche).filter_by(id_lanche=id_lanche).first()
+            lanche = db_session.execute(select(Lanche).filter_by(id_lanche=id_lanche)).first()
             if not lanche:
                 return jsonify({"error": "Lanche não encontrado"}), 404
-
-            receita = db_session.query(Lanche_insumo).filter_by(lanche_id=id_lanche).all()
+            receita = db_session.execute(select(Lanche_insumo).filter_by(lanche_id=id_lanche)).all()
             if not receita:
                 return jsonify({"error": "Esse lanche não tem receita cadastrada"}), 400
 
@@ -469,7 +468,8 @@ def cadastrar_pedido():
 
             # --- Verifica estoque ---
             for insumo_id, qtd in receita_final.items():
-                insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
+                insumo = db_session.execute(select(Insumo).filter_by(id_insumo=insumo_id)).first()
+                # insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
                 if not insumo:
                     return jsonify({"error": f"Insumo ID {insumo_id} não encontrado"}), 404
                 if insumo.qtd_insumo < qtd * qtd_lanche:
@@ -477,13 +477,15 @@ def cadastrar_pedido():
 
             # --- Dá baixa no estoque ---
             for insumo_id, qtd in receita_final.items():
-                insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
+                insumo = db_session.execute(select(Insumo).filter_by(id_insumo=insumo_id)).first()
+                # insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
                 insumo.qtd_insumo -= qtd * qtd_lanche
                 db_session.add(insumo)
 
         # --- Se tiver bebida ---
         if id_bebida:
-            bebida = db_session.query(Bebida).filter_by(id_bebida=id_bebida).first()
+            bebida = db_session.execute(select(Bebida).filter_by(id_bebida=id_bebida)).first()
+            # bebida = db_session.query(Bebida).filter_by(id_bebida=id_bebida).first()
             if not bebida:
                 return jsonify({"error": "Bebida não encontrada"}), 404
 
@@ -767,8 +769,8 @@ def cadastrar_venda():
 
         # VALOR ATUALIZADO DO LANCHE ENVIADO PELO APP (COM ADICIONAIS)
         valor_venda = float(dados.get("valor_venda", 0))
-
-        pessoa = db_session.query(Pessoa).filter_by(id_pessoa=pessoa_id).first()
+        pessoa = db_session.execute(select(Pessoa).filter_by(id_pessoa=pessoa_id)).first()
+        # pessoa = db_session.query(Pessoa).filter_by(id_pessoa=pessoa_id).first()
         if not pessoa:
             return jsonify({"error": "Pessoa não encontrada"}), 404
 
@@ -782,12 +784,14 @@ def cadastrar_venda():
         # ------ PROCESSAMENTO DO LANCHE (SEM BAIXA) ----------
         # =====================================================
         if lanche_id:
-            lanche = db_session.query(Lanche).filter_by(id_lanche=lanche_id).first()
+            lanche = db_session.execute(select(Lanche).filter_by(id_lanche=lanche_id)).first()
+            # lanche = db_session.query(Lanche).filter_by(id_lanche=lanche_id).first()
             if not lanche:
                 return jsonify({"error": "Lanche não encontrado"}), 404
 
             # Receita base
-            receita = db_session.query(Lanche_insumo).filter_by(lanche_id=lanche_id).all()
+            receita = db_session.execute(select(Lanche_insumo).filter_by(lanche_id=lanche_id)).all()
+            # receita = db_session.query(Lanche_insumo).filter_by(lanche_id=lanche_id).all()
             receita_final = {item.insumo_id: item.qtd_insumo for item in receita}
 
             # Ajustes de receita
@@ -1323,9 +1327,10 @@ def editar_pedido_status(id_pedido): # editar pedido status
         forma_pagamento = dados['forma_pagamento']
 
         observacoes = dados.get("observacoes", {"adicionar": [], "remover": []})
-
-        lanche = db_session.query(Lanche).filter_by(id_lanche=lanche_id).first()
-        pessoa = db_session.query(Pessoa).filter_by(id_pessoa=pessoa_id).first()
+        lanche = db_session.execute(select(Lanche).filter_by(id_lanche=lanche_id)).first()
+        # lanche = db_session.query(Lanche).filter_by(id_lanche=lanche_id).first()
+        pessoa = db_session.execute(select(Pessoa).filter_by(id_pessoa=pessoa_id)).first()
+        # pessoa = db_session.query(Pessoa).filter_by(id_pessoa=pessoa_id).first()
 
         if not lanche:
             return jsonify({"error": "Lanche não encontrado"}), 404
@@ -1333,7 +1338,8 @@ def editar_pedido_status(id_pedido): # editar pedido status
             return jsonify({"error": "Pessoa não encontrada"}), 404
 
         # Receita base do lanche
-        receita = db_session.query(Lanche_insumo).filter_by(lanche_id=lanche_id).all()
+        receita = db_session.execute(select(Lanche_insumo).filter_by(lanche_id=lanche_id)).all()
+        # receita = db_session.query(Lanche_insumo).filter_by(lanche_id=lanche_id).all()
         if not receita:
             return jsonify({"error": "Esse lanche não tem receita cadastrada"}), 400
 
@@ -1353,7 +1359,8 @@ def editar_pedido_status(id_pedido): # editar pedido status
 
         # Verificar estoque
         for insumo_id, qtd in receita_final.items():
-            insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
+            insumo = db_session.execute(select(Insumo).filter_by(id_insumo=insumo_id)).first()
+            # insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
             if not insumo:
                 return jsonify({"error": f"Insumo ID {insumo_id} não encontrado"}), 404
             if insumo.qtd_insumo < qtd * qtd_lanche:
@@ -1361,7 +1368,8 @@ def editar_pedido_status(id_pedido): # editar pedido status
 
         # Dar baixa nos insumos
         for insumo_id, qtd in receita_final.items():
-            insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
+            insumo = db_session.execute(select(Insumo).filter_by(id_insumo=insumo_id)).first()
+            # insumo = db_session.query(Insumo).filter_by(id_insumo=insumo_id).first()
             insumo.qtd_insumo -= qtd * qtd_lanche
             db_session.add(insumo)
 
@@ -1610,7 +1618,8 @@ def deletar_lanche_insumo():
 @app.route('/dados_grafico')
 def dados_grafico():
     session = local_session()
-    vendas = session.query(Venda).all()
+    vendas = session.execute(select(Venda)).all()
+    # vendas = session.query(Venda).all()
 
     agrupado = {}
 
@@ -1640,7 +1649,9 @@ def dados_grafico():
 # grafico de faturamento
 @app.route("/faturamento_mensal", methods=["GET"])
 def faturamento_mensal():
-    vendas = local_session.query(Venda).all()
+    db_session = local_session()
+    vendas = db_session.execute(select(Venda)).all()
+    # vendas = db_session.query(Venda).all()
 
     faturamento = defaultdict(float)
 
@@ -1682,12 +1693,20 @@ def vendas_valor_por_funcionario():
 
     db = local_session()
     try:
-        # Base: vendas do dia (pega somente a parte YYYY-MM-DD)
-        qry = db.query(
-            Venda.pessoa_id.label('pessoa_id'),
-            func.count(Venda.id_venda).label('qtd'),
-            func.coalesce(func.sum(Venda.valor_venda), 0).label('total')
-        ).filter(func.substr(Venda.data_venda, 1, 10) == date_str)
+        # Base: vendas do dia (pega somente a parte YYYY-MM-
+        stmt = (
+            select(
+                Venda.pessoa_id.label('pessoa_id'),
+                func.count(Venda.id_venda).label('qtd'),
+                func.coalesce(func.sum(Venda.valor_venda), 0).label('total')
+            )
+            .filter_by(func.substr(Venda.data_venda, 1, 10) == date_str)
+        )
+        # qry = db.query(
+        #     Venda.pessoa_id.label('pessoa_id'),
+        #     func.count(Venda.id_venda).label('qtd'),
+        #     func.coalesce(func.sum(Venda.valor_venda), 0).label('total')
+        # ).filter(func.substr(Venda.data_venda, 1, 10) == date_str)
 
         # Se for para excluir deliveries e SE existir relacionamento via Pedido, usamos numero_mesa==0
         # Tentativa segura: checar se as colunas existem e o modelo Pedido está presente
@@ -1726,7 +1745,8 @@ def vendas_valor_por_funcionario():
         ids_present = set()
 
         for pessoa_id, qtd, total in rows:
-            pessoa = db.query(Pessoa).filter_by(id_pessoa=pessoa_id).first()
+            pessoa = db.execute(select(Pessoa).filter_by(id_pessoa=pessoa_id)).first()
+            # pessoa = db.query(Pessoa).filter_by(id_pessoa=pessoa_id).first()
             nome = pessoa.nome_pessoa if pessoa else f"ID {pessoa_id}"
             labels.append(nome)
             counts.append(int(qtd))
@@ -1735,8 +1755,10 @@ def vendas_valor_por_funcionario():
 
         # incluir zeros: buscar todos os funcionários com o papel (ou todos se role None)
         if include_zeros:
-            pquery = db.query(Pessoa)
+            pquery = db.execute(select(Pessoa))
+            # pquery = db.query(Pessoa)
             if role:
+
                 pquery = pquery.filter(func.lower(Pessoa.papel) == role.lower())
             pessoas = pquery.all()
             for p in pessoas:
