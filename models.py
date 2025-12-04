@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, Float, ForeignKey
-from sqlalchemy.orm import sessionmaker, scoped_session, declarative_base
+from sqlalchemy.orm import sessionmaker, scoped_session, declarative_base, relationship
 from werkzeug.security import generate_password_hash, check_password_hash
 
 # Configuração do banco de dados
@@ -167,6 +167,10 @@ class Venda(Base):
 
     bebida_id = Column(Integer, ForeignKey('bebidas.id_bebida'), nullable=True)
 
+    pessoa = relationship("Pessoa")
+    lanche = relationship("Lanche")
+    bebida = relationship("Bebida")
+
     def __repr__(self):
         return '<Venda: {} {}>'.format(self.id_venda, self.data_venda)
 
@@ -199,6 +203,9 @@ class Venda(Base):
             "pessoa_id": self.pessoa_id,
             "forma_pagamento": self.forma_pagamento,
             "endereco": self.endereco,
+            "lanche": self.lanche.nome_lanche if self.lanche else None,
+            "pessoa": self.pessoa.nome_pessoa if self.pessoa else None,
+            "bebida": self.bebida.nome_bebida if self.bebida else None,
         }
         return var_venda
 

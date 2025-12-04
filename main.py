@@ -1167,7 +1167,8 @@ def listar_vendas_id(id_mesa):
 def listar_vendas():
     db_session = local_session()
     try:
-        sql_vendas = select(Venda)
+        sql_vendas = select(Venda).order_by(Venda.id_venda.desc())
+
         venda_resultado = db_session.execute(sql_vendas).scalars()
         vendas = []
         for n in venda_resultado:
