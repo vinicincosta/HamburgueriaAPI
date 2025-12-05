@@ -98,7 +98,13 @@ def login():
 
         # Verifica se o usuário existe e se a senha está correta
         if user and user.check_password_hash(senha):
-            access_token = create_access_token(identity=email)  # Gera o token de acesso
+            access_token = create_access_token(
+                identity=email,
+                additional_claims={
+                    "id_usuario": user.id_pessoa,
+                    "papel": user.papel
+                }
+            )
             papel = user.papel  # Obtém o papel do usuário
             nome = user.nome_pessoa  # Obtém o nome do usuário
             print(f"Login bem-sucedido: {nome}, Papel: {papel}")  # Diagnóstico
@@ -1590,7 +1596,7 @@ def listar_pessoas():
     finally:
         db_session.close()
 
-@app.route('/pessoas/pessoa<id_pessoa>', methods=['GET'])
+@app.route('/id_pessoa/<id_pessoa>', methods=['GET'])
 # @jwt_required()
 # @roles_required('admin')
 def listar_pessoa_by_id(id_pessoa):
@@ -1614,7 +1620,7 @@ def listar_pessoa_by_id(id_pessoa):
         sql_pessoa = select(Pessoa).filter_by(id_pessoa=Pessoa.id_pessoa)
         resultado_pessoa = db_session.execute(sql_pessoa).scalar()
         # pessoas = []
-        # for n in resultado_pessoas:
+        # for n in resultado_pessoa:
         #     pessoas.append(n.serialize())
         #     print(pessoas[-1])
 
@@ -2149,13 +2155,13 @@ def editar_pessoa(id_pessoa):
         if not pessoa_resultado:
             return jsonify({"error": "Pessoa não encontrada"}), 400
 
-        campos_obrigatorios = ["nome_pessoa", "cpf", "salario", "papel", "senha_hash", "email"]
+        # campos_obrigatorios = ["nome_pessoa", "cpf", "salario", "papel", "senha_hash", "email"]
 
-        if not all(campo in dados_editar_pessoa for campo in campos_obrigatorios):
-            return jsonify({"error": "Campo inexistente"}), 400
+        # if not all(campo in dados_editar_pessoa for campo in campos_obrigatorios):
+        #     return jsonify({"error": "Campo inexistente"}), 400
 
-        if any(not dados_editar_pessoa[campo] for campo in campos_obrigatorios):
-            return jsonify({"error": "Preencher todos os campos"}), 400
+        # if any(not dados_editar_pessoa[campo] for campo in campos_obrigatorios):
+        #     return jsonify({"error": "Preencher todos os campos"}), 400
 
         else:
             pessoa_resultado.nome_pessoa = dados_editar_pessoa['nome_pessoa']
@@ -2253,8 +2259,8 @@ def dados_grafico():
        }
        """
     session = local_session()
-    vendas = session.execute(select(Venda)).all()
-    # vendas = session.query(Venda).all()
+
+    vendas = session.query(Venda).all()
 
     agrupado = {}
 
@@ -2300,10 +2306,10 @@ def faturamento_mensal():
            {"mes": "2025-11", "faturamento": 1870.90}
        ]
        """
-    vendas = local_session.query(Venda).all()
+    # vendas = local_session.query(Venda).all()
     db_session = local_session()
-    vendas = db_session.execute(select(Venda)).all()
-    # vendas = db_session.query(Venda).all()
+    # vendas = db_session.execute(select(Venda)).all()
+    vendas = db_session.query(Venda).all()
 
     faturamento = defaultdict(float)
 
@@ -2326,123 +2332,123 @@ def faturamento_mensal():
     ]
     return jsonify(resposta)
 #
-@app.route('/vendas_valor_por_funcionario', methods=['GET'])
-def vendas_valor_por_funcionario():
-    """
-    GET /vendas_valor_por_funcionario
-    ----------------------------------------------------
-    Retorna, por funcionário, a quantidade de vendas e o
-    total vendido *no dia*.
-
-     Query Params:
-        ?date=YYYY-MM-DD      (default = hoje)
-        ?role=garcom
-        ?include_delivery=true/false
-        ?include_zeros=true/false
-
-     O que faz:
-        - Filtra vendas do dia.
-        - Opcionalmente filtra por papel.
-        - Agrupa por funcionário.
-        - Pode incluir funcionários com zero vendas.
-
-     Exemplo:
-    {
-        "labels": ["João", "Marcos"],
-        "counts": [3, 1],
-        "totals": [85.50, 22.00]
-    }
-    """
-    date_str = request.args.get('date') or datetime.now().strftime('%Y-%m-%d')
-    role = request.args.get('role')                     # ex: "garcom"
-    include_delivery = request.args.get('include_delivery', 'false').lower() == 'true'
-    include_zeros = request.args.get('include_zeros', 'false').lower() == 'true'
-
-    db = local_session()
-    try:
-        # Base: vendas do dia (pega somente a parte YYYY-MM-
-        stmt = (
-            select(
-                Venda.pessoa_id.label('pessoa_id'),
-                func.count(Venda.id_venda).label('qtd'),
-                func.coalesce(func.sum(Venda.valor_venda), 0).label('total')
-            )
-            .filter_by(func.substr(Venda.data_venda, 1, 10) == date_str)
-        )
-        # qry = db.query(
-        #     Venda.pessoa_id.label('pessoa_id'),
-        #     func.count(Venda.id_venda).label('qtd'),
-        #     func.coalesce(func.sum(Venda.valor_venda), 0).label('total')
-        # ).filter(func.substr(Venda.data_venda, 1, 10) == date_str)
-
-        # Se for para excluir deliveries e SE existir relacionamento via Pedido, usamos numero_mesa==0
-        # Tentativa segura: checar se as colunas existem e o modelo Pedido está presente
-        use_pedido_flag = False
-        try:
-            # checa se Venda tem coluna pedido_id e existe o modelo Pedido com numero_mesa
-            if 'pedido_id' in Venda.__table__.columns and 'numero_mesa' in Pedido.__table__.columns:
-                use_pedido_flag = True
-        except Exception:
-            use_pedido_flag = False
-
-        if not include_delivery:
-            if use_pedido_flag:
-                # join com Pedido e excluir where Pedido.numero_mesa == 0
-                qry = qry.join(Pedido, Pedido.id_pedido == Venda.pedido_id).filter(Pedido.numero_mesa != 0)
-            else:
-                # fallback: excluir quando endereco indica delivery ou endereco == '0' ou vazio
-                qry = qry.filter(
-                    and_(
-                        not_(Venda.endereco.ilike('%delivery%')),
-                        not_(Venda.endereco.ilike('%entrega%')),
-                        Venda.endereco != '0',
-                        Venda.endereco != ''
-                    )
-                )
-
-        # se pediu filtrar por papel, junta com Pessoa e filtra
-        if role:
-            qry = qry.join(Pessoa, Pessoa.id_pessoa == Venda.pessoa_id).filter(func.lower(Pessoa.papel) == role.lower())
-
-        rows = qry.group_by(Venda.pessoa_id).order_by(func.sum(Venda.valor_venda).desc()).all()
-
-        labels = []
-        counts = []
-        totals = []
-        ids_present = set()
-
-        for pessoa_id, qtd, total in rows:
-            pessoa = db.execute(select(Pessoa).filter_by(id_pessoa=pessoa_id)).first()
-            # pessoa = db.query(Pessoa).filter_by(id_pessoa=pessoa_id).first()
-            nome = pessoa.nome_pessoa if pessoa else f"ID {pessoa_id}"
-            labels.append(nome)
-            counts.append(int(qtd))
-            totals.append(float(total or 0))
-            ids_present.add(pessoa_id)
-
-        # incluir zeros: buscar todos os funcionários com o papel (ou todos se role None)
-        if include_zeros:
-            pquery = db.execute(select(Pessoa))
-            # pquery = db.query(Pessoa)
-            if role:
-                pquery = pquery.filter(func.lower(Pessoa.papel) == role.lower())
-            pessoas = pquery.all()
-            for p in pessoas:
-                if p.id_pessoa not in ids_present:
-                    labels.append(p.nome_pessoa)
-                    counts.append(0)
-                    totals.append(0.0)
-
-        return jsonify({
-            "date": date_str,
-            "role": role,
-            "include_delivery": include_delivery,
-            "labels": labels,
-            "counts": counts,
-            "totals": totals
-        })
-    finally:
-        db.close()
+# @app.route('/vendas_valor_por_funcionario', methods=['GET'])
+# def vendas_valor_por_funcionario():
+#     """
+#     GET /vendas_valor_por_funcionario
+#     ----------------------------------------------------
+#     Retorna, por funcionário, a quantidade de vendas e o
+#     total vendido *no dia*.
+#
+#      Query Params:
+#         ?date=YYYY-MM-DD      (default = hoje)
+#         ?role=garcom
+#         ?include_delivery=true/false
+#         ?include_zeros=true/false
+#
+#      O que faz:
+#         - Filtra vendas do dia.
+#         - Opcionalmente filtra por papel.
+#         - Agrupa por funcionário.
+#         - Pode incluir funcionários com zero vendas.
+#
+#      Exemplo:
+#     {
+#         "labels": ["João", "Marcos"],
+#         "counts": [3, 1],
+#         "totals": [85.50, 22.00]
+#     }
+#     """
+#     date_str = request.args.get('date') or datetime.now().strftime('%Y-%m-%d')
+#     role = request.args.get('role')                     # ex: "garcom"
+#     include_delivery = request.args.get('include_delivery', 'false').lower() == 'true'
+#     include_zeros = request.args.get('include_zeros', 'false').lower() == 'true'
+#
+#     db = local_session()
+#     try:
+#         # Base: vendas do dia (pega somente a parte YYYY-MM-
+#         stmt = (
+#             select(
+#                 Venda.pessoa_id.label('pessoa_id'),
+#                 func.count(Venda.id_venda).label('qtd'),
+#                 func.coalesce(func.sum(Venda.valor_venda), 0).label('total')
+#             )
+#             .filter_by(func.substr(Venda.data_venda, 1, 10) == date_str)
+#         )
+#         # qry = db.query(
+#         #     Venda.pessoa_id.label('pessoa_id'),
+#         #     func.count(Venda.id_venda).label('qtd'),
+#         #     func.coalesce(func.sum(Venda.valor_venda), 0).label('total')
+#         # ).filter(func.substr(Venda.data_venda, 1, 10) == date_str)
+#
+#         # Se for para excluir deliveries e SE existir relacionamento via Pedido, usamos numero_mesa==0
+#         # Tentativa segura: checar se as colunas existem e o modelo Pedido está presente
+#         use_pedido_flag = False
+#         try:
+#             # checa se Venda tem coluna pedido_id e existe o modelo Pedido com numero_mesa
+#             if 'pedido_id' in Venda.__table__.columns and 'numero_mesa' in Pedido.__table__.columns:
+#                 use_pedido_flag = True
+#         except Exception:
+#             use_pedido_flag = False
+#
+#         if not include_delivery:
+#             if use_pedido_flag:
+#                 # join com Pedido e excluir where Pedido.numero_mesa == 0
+#                 qry = qry.join(Pedido, Pedido.id_pedido == Venda.pedido_id).filter(Pedido.numero_mesa != 0)
+#             else:
+#                 # fallback: excluir quando endereco indica delivery ou endereco == '0' ou vazio
+#                 qry = qry.filter(
+#                     and_(
+#                         not_(Venda.endereco.ilike('%delivery%')),
+#                         not_(Venda.endereco.ilike('%entrega%')),
+#                         Venda.endereco != '0',
+#                         Venda.endereco != ''
+#                     )
+#                 )
+#
+#         # se pediu filtrar por papel, junta com Pessoa e filtra
+#         if role:
+#             qry = qry.join(Pessoa, Pessoa.id_pessoa == Venda.pessoa_id).filter(func.lower(Pessoa.papel) == role.lower())
+#
+#         rows = qry.group_by(Venda.pessoa_id).order_by(func.sum(Venda.valor_venda).desc()).all()
+#
+#         labels = []
+#         counts = []
+#         totals = []
+#         ids_present = set()
+#
+#         for pessoa_id, qtd, total in rows:
+#             pessoa = db.execute(select(Pessoa).filter_by(id_pessoa=pessoa_id)).first()
+#             # pessoa = db.query(Pessoa).filter_by(id_pessoa=pessoa_id).first()
+#             nome = pessoa.nome_pessoa if pessoa else f"ID {pessoa_id}"
+#             labels.append(nome)
+#             counts.append(int(qtd))
+#             totals.append(float(total or 0))
+#             ids_present.add(pessoa_id)
+#
+#         # incluir zeros: buscar todos os funcionários com o papel (ou todos se role None)
+#         if include_zeros:
+#             pquery = db.execute(select(Pessoa))
+#             # pquery = db.query(Pessoa)
+#             if role:
+#                 pquery = pquery.filter(func.lower(Pessoa.papel) == role.lower())
+#             pessoas = pquery.all()
+#             for p in pessoas:
+#                 if p.id_pessoa not in ids_present:
+#                     labels.append(p.nome_pessoa)
+#                     counts.append(0)
+#                     totals.append(0.0)
+#
+#         return jsonify({
+#             "date": date_str,
+#             "role": role,
+#             "include_delivery": include_delivery,
+#             "labels": labels,
+#             "counts": counts,
+#             "totals": totals
+#         })
+#     finally:
+#         db.close()
 
 @app.route('/vendas_valor_por_funcionario_mes', methods=['GET'])
 def vendas_valor_por_funcionario_mes():
@@ -2552,18 +2558,18 @@ def vendas_valor_por_funcionario_mes():
 
     finally:
         db.close()
-# @app.route('/teste', methods=['GET'])
-# @jwt_required()
-# def teste():
-#     db_session = local_session()
-#     try:
-#         claims = get_jwt()
-#         id_usuario = claims["id_usuario"]
-#         return jsonify({'sucesso': id_usuario}), 200
-#     except Exception as e:
-#         return jsonify({"error": str(e)})
-#     finally:
-#         db_session.close()
+@app.route('/teste', methods=['GET'])
+@jwt_required()
+def teste():
+    db_session = local_session()
+    try:
+        claims = get_jwt()
+        id_usuario = claims['id_usuario']
+        return jsonify({'sucesso': id_usuario}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)})
+    finally:
+        db_session.close()
 
 if __name__ == '__main__':
     app.run(debug=True, host="0.0.0.0", port=5002)

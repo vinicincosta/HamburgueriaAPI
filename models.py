@@ -343,13 +343,13 @@ class Entrada(Base):
 class Pessoa(Base):
     __tablename__ = 'pessoas'
     id_pessoa = Column(Integer, primary_key=True)
-    nome_pessoa = Column(String(20), nullable=False, index=True)
+    nome_pessoa = Column(String(20), nullable=True, index=True)
     cpf = Column(String(11), nullable=True, index=True)
     salario = Column(Float, nullable=True, index=True)
     papel = Column(String(20), nullable=True, index=True)
     status_pessoa = Column(String, nullable=True)
     senha_hash = Column(String, nullable=False)
-    email = Column(String, nullable=False, unique=True)
+    email = Column(String, nullable=True, unique=True)
 
 
     def __repr__(self):
@@ -387,6 +387,7 @@ class Pessoa(Base):
             'papel': self.papel,
             'status_pessoa': self.status_pessoa,
             'email': self.email,
+            'senha_hash': self.senha_hash
 
         }
         return var_pessoa
