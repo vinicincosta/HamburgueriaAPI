@@ -2168,7 +2168,7 @@ def editar_pessoa(id_pessoa):
             pessoa_resultado.cpf = dados_editar_pessoa['cpf']
             pessoa_resultado.salario = dados_editar_pessoa['salario']
             pessoa_resultado.papel = dados_editar_pessoa['papel']
-            pessoa_resultado.senha_hash = dados_editar_pessoa['senha_hash']
+            # pessoa_resultado.senha_hash = dados_editar_pessoa['senha_hash']
             pessoa_resultado.email = dados_editar_pessoa['email']
             pessoa_resultado.status_pessoa = dados_editar_pessoa['status_pessoa']
             pessoa_resultado.save(db_session)
@@ -2560,7 +2560,7 @@ def vendas_valor_por_funcionario_mes():
         db.close()
 @app.route('/teste', methods=['GET'])
 @jwt_required()
-def teste():
+def rota_teste():
     db_session = local_session()
     try:
         claims = get_jwt()
