@@ -1633,45 +1633,37 @@ def listar_pessoa_by_id(id_pessoa):
     finally:
         db_session.close()
 @app.route('/get_insumo_id/<id_insumo>', methods=['GET'])
-# @jwt_required()
-# @roles_required('cozinha', 'admin')
 def get_insumo_id(id_insumo):
-    """
-      GET /get_insumo_id/<id_insumo>
-      -----------------------------------
-      Retorna as informações de um insumo específico.
-
-      Exemplo de resposta:
-      {
-          "success": "Insumo encontrado com sucesso",
-          "id_insumo": 3,
-          "nome_insumo": "Tomate",
-          "qtd_insumo": 12,
-          "validade": "2025-04-12",
-          "categoria_id": 1
-      }
-      """
     db_session = local_session()
     try:
-        insumo = db_session.execute(select(Insumo).filter_by(id=int(id_insumo))).scalar()
+        insumo = db_session.execute(
+            select(Insumo).filter_by(id_insumo=int(id_insumo))
+        ).scalar_one_or_none()
 
         if not insumo:
             return jsonify({
-                "error": "Insumo encontrado"
-            })
+                "error": "Insumo não encontrado"
+            }), 404
 
         return jsonify({
             "success": "Insumo encontrado com sucesso",
             "id_insumo": insumo.id_insumo,
             "nome_insumo": insumo.nome_insumo,
             "qtd_insumo": insumo.qtd_insumo,
-            "validade": insumo.validade,
+            "custo": insumo.custo,
             "categoria_id": insumo.categoria_id,
         })
+
+    except ValueError:
+        return jsonify({
+            "error": "ID do insumo deve ser numérico"
+        }), 400
+
     except Exception as e:
         return jsonify({
-            "error": "Valor inválido"
-        })
+            "error": str(e)
+        }), 500
+
     finally:
         db_session.close()
 
