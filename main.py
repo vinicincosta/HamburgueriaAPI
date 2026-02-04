@@ -1632,6 +1632,8 @@ def listar_pessoa_by_id(id_pessoa):
         return jsonify({"error": str(e)})
     finally:
         db_session.close()
+
+
 @app.route('/get_insumo_id/<id_insumo>', methods=['GET'])
 def get_insumo_id(id_insumo):
     db_session = local_session()
@@ -2230,6 +2232,32 @@ def deletar_lanche_insumo():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+@app.route("/deletar_categoria/<id_categoria>", methods=["DELETE"])
+def deletar_categoria(id_categoria):
+    db_session = local_session()
+
+    try:
+        categoria_del = db_session.execute(select(Categoria).filter_by(id_categoria=int(id_categoria))).scalar()
+
+        if not categoria_del:
+            return jsonify({
+                "error": 'Categoria não encontrada'
+            })
+
+        categoria_del.delete(db_session)
+        return jsonify({
+            "success": "Categoria deletada com sucesso"
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)})
+    finally:
+        db_session.close()
+
+
+
+
 # grafco de vendas
 @app.route('/dados_grafico')
 def dados_grafico():
@@ -2550,6 +2578,8 @@ def vendas_valor_por_funcionario_mes():
 
     finally:
         db.close()
+
+
 @app.route('/teste', methods=['GET'])
 @jwt_required()
 def rota_teste():
