@@ -12,6 +12,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_cors import CORS
 # from flask_login import LoginManager, current_user, login_required, login_user, logout_user, current_user
 from sqlalchemy import func, and_, not_
+
 app = Flask(__name__)
 CORS(app)
 app.config['JWT_SECRET_KEY'] = "03050710"
@@ -249,7 +250,6 @@ def update_insumo(id_insumo):
         insumo.custo = data.get('custo', insumo.custo)
         insumo.categoria_id = data.get('categoria_id', insumo.categoria_id)
 
-
         LIMITE_MINIMO = 5
         if insumo.qtd_insumo <= LIMITE_MINIMO:
             # pega todos os lanches que usam esse insumo
@@ -273,6 +273,7 @@ def update_insumo(id_insumo):
         return jsonify({"error": str(e)}), 500
     finally:
         db_session.close()
+
 
 @app.route('/update_bebida/<int:id_bebida>', methods=['PUT'])
 def update_bebida(id_bebida):
@@ -344,6 +345,7 @@ def update_bebida(id_bebida):
         return jsonify({"error": str(e)}), 500
     finally:
         db_session.close()
+
 
 # Cadastro (POST)
 @app.route('/usuarios', methods=['POST'])
@@ -459,6 +461,7 @@ def cadastrar_lanche():
     finally:
         db_session.close()
 
+
 @app.route("/entradas", methods=["POST"])
 # @jwt_required()
 # @roles_required('admin')
@@ -502,16 +505,14 @@ def cadastrar_entrada():
         qtd = int(dados["qtd_entrada"])
         valor = float(dados["valor_entrada"])
 
-
         insumo_id = None
         bebida_id = None
-
 
         if qtd <= 0 or valor <= 0:
             return jsonify({"error": "Quantidade e valor devem ser maiores que zero"}), 400
 
         if 'insumo_id' in dados and 'bebida_id' in dados:
-            return jsonify({"error":"Insira apenas o ID de um item"}), 400
+            return jsonify({"error": "Insira apenas o ID de um item"}), 400
         elif 'insumo_id' in dados:
             # Verificar se o insumo existe
             # insumo = local_session.query(Insumo).filter_by(id_insumo=dados["insumo_id"]).first()
@@ -537,7 +538,6 @@ def cadastrar_entrada():
         else:
             return jsonify({"error": "Não encontrado"}), 400
 
-
         # Cria a entrada
         nova_entrada = Entrada(
             nota_fiscal=dados["nota_fiscal"],
@@ -558,48 +558,55 @@ def cadastrar_entrada():
     except Exception as e:
         return jsonify({"error": f"Erro ao salvar entrada: {str(e)}"}), 500
 
+
 @app.route("/bebidas", methods=["POST"])
 def cadastrar_bebida():
-    """
-        API para cadastrar uma bebida.
-
-        # Endpoint:
-        POST /bebidas
-
-        ## Corpo da Requisição (JSON)
-        {
-            "nome_bebida": "Coca-Cola",
-            "descricao": "350ml",
-            "valor": 6.50,
-            "id_categoria": 3
-        }
-
-        ## Resposta (JSON)
-        {
-            "success": "Bebida cadastrada com sucesso",
-            "bebida": { ... }
-        }
-        """
     db_session = local_session()
     try:
-        dados = request.json()
-        campos_obrigatorios = ["nome_bebida", "valor", "id_categoria"]
-        if not all(campo in dados for campo in campos_obrigatorios):
-            return jsonify({"error": "Campos obrigatórios ausentes"}), 400
+        dados = request.get_json()
+        print("DADOS RECEBIDOS:", dados)
 
-        if any(dados[campo] == "" for campo in campos_obrigatorios):
-            return jsonify({"error": "Preencha todos os campos"}), 400
+        if not dados:
+            return jsonify({"error": "JSON inválido"}), 400
+
+        campos_obrigatorios = ["nome_bebida", "valor", "id_categoria"]
+        faltando = [c for c in campos_obrigatorios if c not in dados]
+
+        if faltando:
+            return jsonify({
+                "error": "Campos obrigatórios ausentes",
+                "faltando": faltando
+            }), 400
+
+        nome_bebida = dados["nome_bebida"]
+        descricao = dados.get("descricao")
+        id_categoria = int(dados["id_categoria"])
+        valor = float(dados["valor"])
+        quantidade = 0
 
         nova_bebida = Bebida(
-            nome_bebida=dados["nome_bebida"],
-            descricao=dados["descricao"],
-            categoria=dados["id_categoria"],
-            valor=dados["valor"],
-            quantidade=0
+            nome_bebida=nome_bebida,
+            descricao=descricao,
+            categoria=id_categoria,
+            valor=valor,
+            quantidade=quantidade
         )
+
         nova_bebida.save(db_session)
+
+        return jsonify({
+            "success": "Cadastrado com sucesso",
+            "bebida": nova_bebida.serialize()
+        }), 201
+
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        print("ERRO API:", e)
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        db_session.close()
+
+
 
 @app.route('/pedidos', methods=['POST'])
 def cadastrar_pedido():
@@ -643,7 +650,7 @@ def cadastrar_pedido():
         numero_mesa_raw = dados.get("numero_mesa")
 
         if isinstance(numero_mesa_raw, str) and numero_mesa_raw.strip().lower() == "delivery":
-            numero_mesa = 0      # salva como 0 no banco
+            numero_mesa = 0  # salva como 0 no banco
             tipo_pedido = "Delivery"
         else:
             try:
@@ -737,7 +744,7 @@ def cadastrar_pedido():
 
             venda_dict = novo_pedido.serialize()
             venda_dict["ajustes_receita"] = {int(k): v for k, v in receita_final_str_keys.items()}
-            venda_dict["tipo_pedido"] = tipo_pedido  #  mostra se é Mesa X ou Delivery
+            venda_dict["tipo_pedido"] = tipo_pedido  # mostra se é Mesa X ou Delivery
             pedidos_registrados.append(venda_dict)
 
         db_session.commit()
@@ -892,7 +899,6 @@ def cadastrar_lanche_insumo():
         return jsonify({"error": str(e)}), 500
 
 
-
 @app.route('/vendas', methods=['POST'])
 def cadastrar_venda():
     """
@@ -984,7 +990,6 @@ def cadastrar_venda():
 
         if not lanche_id and not bebida_id:
             return jsonify({"error": "É necessário informar pelo menos um lanche ou uma bebida"}), 400
-
 
         # -------- SALVAR VENDA NO BANCO DE DADOS -------------
         nova_venda = Venda(
@@ -1596,6 +1601,7 @@ def listar_pessoas():
     finally:
         db_session.close()
 
+
 @app.route('/id_pessoa/<id_pessoa>', methods=['GET'])
 # @jwt_required()
 # @roles_required('admin')
@@ -1669,6 +1675,7 @@ def get_insumo_id(id_insumo):
     finally:
         db_session.close()
 
+
 @app.route('/categorias/categoria<id_categoria>', methods=['GET'])
 # @jwt_required()
 # @roles_required('admin')
@@ -1704,6 +1711,7 @@ def listar_cateogira_by_id(id_categoria):
         return jsonify({"error": str(e)})
     finally:
         db_session.close()
+
 
 # EDITAR (PUT)
 @app.route('/pedidos/mesa', methods=['PUT'])
@@ -1751,7 +1759,7 @@ def editar_pedidos_numero_mesa():  # Função para fechar a conta
 
 
 @app.route('/pedidos/<id_pedido>', methods=['PUT'])
-def editar_pedido_status(id_pedido): # editar pedido status
+def editar_pedido_status(id_pedido):  # editar pedido status
     """
        PUT /pedidos/<id_pedido>
        ----------------------------------------------------
@@ -1966,7 +1974,7 @@ def editar_lanche(id_lanche):
         db_session.close()
 
 
-@app.route('/insumos/<id_insumo>', methods=['PUT']) #
+@app.route('/insumos/<id_insumo>', methods=['PUT'])  #
 # @jwt_required()
 def editar_insumo(id_insumo):
     """
@@ -2034,7 +2042,7 @@ def editar_insumo(id_insumo):
         db_session.close()
 
 
-@app.route('/categorias/<id_categoria>', methods=['PUT']) #
+@app.route('/categorias/<id_categoria>', methods=['PUT'])  #
 # @jwt_required()
 def editar_categoria(id_categoria):
     """
@@ -2105,7 +2113,7 @@ def editar_categoria(id_categoria):
         db_session.close()
 
 
-@app.route('/pessoas/<id_pessoa>', methods=['PUT']) #
+@app.route('/pessoas/<id_pessoa>', methods=['PUT'])  #
 # @jwt_required()
 def editar_pessoa(id_pessoa):
     """
@@ -2256,8 +2264,6 @@ def deletar_categoria(id_categoria):
         db_session.close()
 
 
-
-
 # grafco de vendas
 @app.route('/dados_grafico')
 def dados_grafico():
@@ -2306,6 +2312,8 @@ def dados_grafico():
     valores = list(agrupado_ordenado.values())
 
     return jsonify({"labels": labels, "values": valores})
+
+
 # -----------
 # grafico de faturamento
 @app.route("/faturamento_mensal", methods=["GET"])
@@ -2351,6 +2359,8 @@ def faturamento_mensal():
         for mes, valor in sorted(faturamento.items())
     ]
     return jsonify(resposta)
+
+
 #
 # @app.route('/vendas_valor_por_funcionario', methods=['GET'])
 # def vendas_valor_por_funcionario():
@@ -2533,13 +2543,13 @@ def vendas_valor_por_funcionario_mes():
 
         # filtrar por papel
         if role:
-            qry = qry.join(Pessoa, Pessoa.id_pessoa == Venda.pessoa_id)\
-                     .filter(func.lower(Pessoa.papel) == role.lower())
+            qry = qry.join(Pessoa, Pessoa.id_pessoa == Venda.pessoa_id) \
+                .filter(func.lower(Pessoa.papel) == role.lower())
 
         # resultado agrupado
-        rows = qry.group_by(Venda.pessoa_id)\
-                  .order_by(func.sum(Venda.valor_venda).desc())\
-                  .all()
+        rows = qry.group_by(Venda.pessoa_id) \
+            .order_by(func.sum(Venda.valor_venda).desc()) \
+            .all()
 
         labels = []
         counts = []
@@ -2592,6 +2602,7 @@ def rota_teste():
         return jsonify({"error": str(e)})
     finally:
         db_session.close()
+
 
 if __name__ == '__main__':
     app.run(debug=True, host="0.0.0.0", port=5002)
