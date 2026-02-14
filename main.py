@@ -1137,17 +1137,22 @@ def pedidos():
             ]
         }
         """
+    db_session = local_session()
     try:
-        db_session = local_session()
-        # pedidos = db_session.query(Pedido).all()
-        pedidos = db_session.execute(select(Pedido)).scalars().all()
-        resultado = []
-        for p in pedidos:
-            resultado.append(p.serialize())
-        return jsonify({"pedidos": resultado}), 200
+        sql_pedidos = select(Pedido).order_by(Pedido.id_pedido.desc())
 
+        pedido_resultado = db_session.execute(sql_pedidos).scalars()
+        pedidos = []
+        for n in pedido_resultado:
+            pedidos.append(n.serialize())
+            print(pedidos[-1])
+        return jsonify({
+            "pedidos": pedidos
+        })
     except Exception as e:
-        return jsonify({"error": f"{e}"}), 400
+        return jsonify({"error": str(e)})
+    finally:
+        db_session.close()
 
 
 @app.route('/vendas/receitas', methods=['GET'])
@@ -2641,6 +2646,32 @@ def rota_teste():
         return jsonify({"error": str(e)})
     finally:
         db_session.close()
+
+
+@app.route('/pedido/status/<int:id_pedido>', methods=['PUT'])
+def atualizar_status_pedido(id_pedido):
+    try:
+        db_session = local_session()
+
+        pedido = db_session.get(Pedido, id_pedido)
+
+        if not pedido:
+            return jsonify({"error": "Pedido não encontrado"}), 404
+
+        dados = request.get_json()
+
+        novo_status = dados.get("status")
+
+        if novo_status not in [1, 2]:
+            return jsonify({"error": "Status inválido"}), 400
+
+        pedido.status = novo_status
+        db_session.commit()
+
+        return jsonify({"success": "Status atualizado com sucesso"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
 
 if __name__ == '__main__':
