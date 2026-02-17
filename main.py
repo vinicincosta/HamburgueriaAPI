@@ -2360,6 +2360,7 @@ def dados_grafico():
 
 # -----------
 # grafico de faturamento
+# CORRETO
 @app.route("/faturamento_mensal", methods=["GET"])
 def faturamento_mensal():
     """
@@ -2628,6 +2629,60 @@ def vendas_valor_por_funcionario_mes():
             "labels": labels,
             "counts": counts,
             "totals": totals
+        })
+
+    finally:
+        db.close()
+
+
+@app.route('/vendas_hoje_por_funcionario', methods=['GET'])
+def vendas_hoje_por_funcionario():
+    print("aaaaaaaaaaaaaaaa")
+
+    hoje = datetime.now().strftime('%Y-%m-%d')
+    role = request.args.get('role')
+
+    db = local_session()
+
+    try:
+        qry = db.query(
+            Venda.pessoa_id.label('pessoa_id'),
+            Pessoa.nome_pessoa.label('nome'),
+            func.count(Venda.id_venda).label('qtd'),
+            func.coalesce(func.sum(Venda.valor_venda), 0).label('total')
+        ).join(Pessoa, Pessoa.id_pessoa == Venda.pessoa_id) \
+         .filter(Venda.data_venda.like(f"{hoje}%"))  # 🔥 AQUI ESTÁ A CORREÇÃO
+
+        if role:
+            qry = qry.filter(func.lower(Pessoa.papel) == role.lower())
+
+        rows = qry.group_by(
+            Venda.pessoa_id,
+            Pessoa.nome_pessoa
+        ).all()
+
+        labels = []
+        counts = []
+        totals = []
+        ids = []
+
+        for pid, nome, qtd, total in rows:
+            ids.append(pid)
+            labels.append(nome)
+            counts.append(int(qtd))
+            totals.append(float(total or 0))
+
+        print("ROWS:", rows)
+        print("LABELS:", labels)
+        print("COUNTS:", counts)
+        print("TOTALS:", totals)
+
+        return jsonify({
+            "date": hoje,
+            "labels": labels,
+            "counts": counts,
+            "totals": totals,
+            "ids": ids
         })
 
     finally:
