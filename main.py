@@ -1667,15 +1667,20 @@ def listar_pessoa_by_id(id_pessoa):
         """
     db_session = local_session()
     try:
-        sql_pessoa = select(Pessoa).filter_by(id_pessoa=Pessoa.id_pessoa)
-        resultado_pessoa = db_session.execute(sql_pessoa).scalar()
+
+        pessoa = db_session.execute(
+            select(Pessoa).filter_by(id_pessoa=int(id_pessoa))
+        ).scalar_one_or_none()
+
+        # sql_pessoa = select(Pessoa).filter_by(id_pessoa=Pessoa.id_pessoa)
+        # resultado_pessoa = db_session.execute(sql_pessoa).scalar()
         # pessoas = []
         # for n in resultado_pessoa:
         #     pessoas.append(n.serialize())
         #     print(pessoas[-1])
 
         return jsonify({
-            "pessoa": resultado_pessoa.serialize(),
+            "pessoa": pessoa.serialize(),
             "success": "Listado com sucesso"
         })
     except Exception as e:
@@ -2307,6 +2312,27 @@ def deletar_categoria(id_categoria):
     finally:
         db_session.close()
 
+@app.route("/deletar_pessoa/<id_pessoa>", methods=["DELETE"])
+def deletar_pessoa(id_pessoa):
+    db_session = local_session()
+
+    try:
+        pessoa_del = db_session.execute(select(Pessoa).filter_by(id_pessoa=int(id_pessoa))).scalar()
+
+        if not pessoa_del:
+            return jsonify({
+                "error": 'Pessoa não encontrada'
+            })
+
+        pessoa_del.delete(db_session)
+        return jsonify({
+            "success": "Pessoa deletada com sucesso"
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)})
+    finally:
+        db_session.close()
 
 # grafco de vendas
 @app.route('/dados_grafico')
@@ -2483,7 +2509,7 @@ def faturamento_mensal():
 #
 #         # se pediu filtrar por papel, junta com Pessoa e filtra
 #         if role:
-#             qry = qry.join(Pessoa, Pessoa.id_pessoa == Venda.pessoa_id).filter(func.lower(Pessoa.papel) == role.lower())
+    #             qry = qry.join(Pessoa, Pessoa.id_pessoa == Venda.pessoa_id).filter(func.lower(Pessoa.papel) == role.lower())
 #
 #         rows = qry.group_by(Venda.pessoa_id).order_by(func.sum(Venda.valor_venda).desc()).all()
 #
