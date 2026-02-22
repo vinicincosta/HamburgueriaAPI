@@ -607,10 +607,8 @@ def cadastrar_bebida():
         db_session.close()
 
 
-
 @app.route('/pedidos', methods=['POST'])
 def cadastrar_pedido():
-
     db_session = local_session()
 
     try:
@@ -642,10 +640,11 @@ def cadastrar_pedido():
         # -------- DADOS BÁSICOS --------
         id_pessoa = int(dados["id_pessoa"])
         qtd_lanche = int(dados.get("qtd_lanche", 1))
+        qtd_bebida = int(dados.get("qtd_bebida", 1 if dados.get("id_bebida") else 0))
         data_pedido = dados.get("data_pedido", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         detalhamento = dados.get("detalhamento", "")
 
-        # 🔥 Blindagem observacoes
+        #  Blindagem observacoes
         observacoes = dados.get("observacoes") or {"adicionar": [], "remover": []}
 
         id_lanche_raw = dados.get("id_lanche")
@@ -721,7 +720,6 @@ def cadastrar_pedido():
 
             # -------- BAIXA ESTOQUE --------
             for insumo_id, qtd in receita_final.items():
-
                 insumo = db_session.execute(
                     select(Insumo).filter_by(id_insumo=insumo_id)
                 ).scalar_one()
@@ -729,6 +727,7 @@ def cadastrar_pedido():
                 insumo.qtd_insumo -= qtd * qtd_lanche
                 db_session.add(insumo)
 
+        # -------- BEBIDA --------
         # -------- BEBIDA --------
         if id_bebida:
 
@@ -739,43 +738,52 @@ def cadastrar_pedido():
             if not bebida:
                 return jsonify({"error": "Bebida não encontrada"}), 404
 
+            if qtd_bebida <= 0:
+                qtd_bebida = 1
+
+            if bebida.quantidade < qtd_bebida:
+                return jsonify({
+                    "error": f"Estoque insuficiente para bebida: {bebida.nome_bebida}"
+                }), 400
+
+            bebida.quantidade -= qtd_bebida
+            db_session.add(bebida)
+
         receita_final_str_keys = {
             str(k): v for k, v in receita_final.items()
         }
 
-        # -------- CRIAR PEDIDOS --------
-        pedidos_registrados = []
 
-        for _ in range(qtd_lanche):
+        # -------- CRIAR PEDIDO ÚNICO --------
+        novo_pedido = Pedido(
+            data_pedido=data_pedido,
+            numero_mesa=numero_mesa,
+            id_lanche=id_lanche,
+            id_bebida=id_bebida,
+            id_pessoa=id_pessoa,
+            qtd_lanche=qtd_lanche,
+            qtd_bebida=qtd_bebida,
+            detalhamento=detalhamento,
+            ajustes_receita=json.dumps(receita_final_str_keys) if receita_final else None,
+            status=False,
+            status_fechado=False
+        )
 
-            novo_pedido = Pedido(
-                data_pedido=data_pedido,
-                numero_mesa=numero_mesa,
-                id_lanche=id_lanche,
-                id_bebida=id_bebida,
-                id_pessoa=id_pessoa,
-                detalhamento=detalhamento,
-                ajustes_receita=json.dumps(receita_final_str_keys),
-                status=False,
-                status_fechado=False
-            )
+        db_session.add(novo_pedido)
+        db_session.commit()
 
-            db_session.add(novo_pedido)
-            db_session.flush()
+        pedido_dict = novo_pedido.serialize()
 
-            pedido_dict = novo_pedido.serialize()
+        if receita_final:
             pedido_dict["ajustes_receita"] = {
                 int(k): v for k, v in receita_final_str_keys.items()
             }
-            pedido_dict["tipo_pedido"] = tipo_pedido
 
-            pedidos_registrados.append(pedido_dict)
-
-        db_session.commit()
+        pedido_dict["tipo_pedido"] = tipo_pedido
 
         return jsonify({
-            "success": f"{qtd_lanche} pedido(s) registrado(s) com sucesso ({tipo_pedido})",
-            "pedidos": pedidos_registrados
+            "success": f"Pedido registrado com sucesso ({tipo_pedido})",
+            "pedido": pedido_dict
         }), 201
 
     except Exception as e:
@@ -785,7 +793,6 @@ def cadastrar_pedido():
 
     finally:
         db_session.close()
-
 
 
 @app.route('/insumos', methods=['POST'])
@@ -1060,7 +1067,6 @@ def cadastrar_venda():
 
     finally:
         db_session.close()
-
 
 
 @app.route('/categorias', methods=['POST'])
@@ -2312,6 +2318,7 @@ def deletar_categoria(id_categoria):
     finally:
         db_session.close()
 
+
 @app.route("/deletar_pessoa/<id_pessoa>", methods=["DELETE"])
 def deletar_pessoa(id_pessoa):
     db_session = local_session()
@@ -2333,6 +2340,7 @@ def deletar_pessoa(id_pessoa):
         return jsonify({"error": str(e)})
     finally:
         db_session.close()
+
 
 # grafco de vendas
 @app.route('/dados_grafico')
@@ -2509,7 +2517,7 @@ def faturamento_mensal():
 #
 #         # se pediu filtrar por papel, junta com Pessoa e filtra
 #         if role:
-    #             qry = qry.join(Pessoa, Pessoa.id_pessoa == Venda.pessoa_id).filter(func.lower(Pessoa.papel) == role.lower())
+#             qry = qry.join(Pessoa, Pessoa.id_pessoa == Venda.pessoa_id).filter(func.lower(Pessoa.papel) == role.lower())
 #
 #         rows = qry.group_by(Venda.pessoa_id).order_by(func.sum(Venda.valor_venda).desc()).all()
 #
@@ -2553,55 +2561,26 @@ def faturamento_mensal():
 
 @app.route('/vendas_valor_por_funcionario_mes', methods=['GET'])
 def vendas_valor_por_funcionario_mes():
-    """
-    GET /vendas_valor_por_funcionario_mes
-    ----------------------------------------------------
-    Retorna vendas agregadas por funcionário *no mês*.
-
-     Query Params:
-        ?month=YYYY-MM        (default = mês atual)
-        ?role=garcom
-        ?include_delivery=true/false
-        ?include_zeros=true/false
-
-     O que faz:
-        - Filtra vendas do mês.
-        - Agrupa por funcionário.
-        - Retorna quantidade e valor total vendido.
-
-     Exemplo:
-    {
-        "labels": ["João", "Marcos"],
-        "counts": [15, 8],
-        "totals": [420.00, 235.50]
-    }
-    """
     month_str = request.args.get('month') or datetime.now().strftime('%Y-%m')
-    role = request.args.get('role')
     include_delivery = request.args.get('include_delivery', 'false').lower() == 'true'
     include_zeros = request.args.get('include_zeros', 'false').lower() == 'true'
 
     db = local_session()
     try:
-        # Vendas do mês -- substr pega só o YYYY-MM
         qry = db.query(
-            Venda.pessoa_id.label('pessoa_id'),
+            Pessoa.id_pessoa,
+            Pessoa.nome_pessoa,
             func.count(Venda.id_venda).label('qtd'),
             func.coalesce(func.sum(Venda.valor_venda), 0).label('total')
-        ).filter(func.substr(Venda.data_venda, 1, 7) == month_str)
-
-        # Detectar se pode usar Pedido.numero_mesa == 0
-        use_pedido_flag = False
-        try:
-            if 'pedido_id' in Venda.__table__.columns and 'numero_mesa' in Pedido.__table__.columns:
-                use_pedido_flag = True
-        except:
-            use_pedido_flag = False
+        ).join(Pessoa, Pessoa.id_pessoa == Venda.pessoa_id) \
+            .filter(func.substr(Venda.data_venda, 1, 7) == month_str) \
+            .filter(func.lower(Pessoa.papel) == 'garcom')  # ✅ FILTRO FIXO
 
         # excluir delivery
         if not include_delivery:
-            if use_pedido_flag:
-                qry = qry.join(Pedido, Pedido.id_pedido == Venda.pedido_id).filter(Pedido.numero_mesa != 0)
+            if 'pedido_id' in Venda.__table__.columns and 'numero_mesa' in Pedido.__table__.columns:
+                qry = qry.join(Pedido, Pedido.id_pedido == Venda.pedido_id) \
+                    .filter(Pedido.numero_mesa != 0)
             else:
                 qry = qry.filter(
                     and_(
@@ -2612,13 +2591,7 @@ def vendas_valor_por_funcionario_mes():
                     )
                 )
 
-        # filtrar por papel
-        if role:
-            qry = qry.join(Pessoa, Pessoa.id_pessoa == Venda.pessoa_id) \
-                .filter(func.lower(Pessoa.papel) == role.lower())
-
-        # resultado agrupado
-        rows = qry.group_by(Venda.pessoa_id) \
+        rows = qry.group_by(Pessoa.id_pessoa, Pessoa.nome_pessoa) \
             .order_by(func.sum(Venda.valor_venda).desc()) \
             .all()
 
@@ -2627,20 +2600,17 @@ def vendas_valor_por_funcionario_mes():
         totals = []
         ids_present = set()
 
-        for pid, qtd, total in rows:
-            pessoa = db.query(Pessoa).filter_by(id_pessoa=pid).first()
-            nome = pessoa.nome_pessoa if pessoa else f"ID {pid}"
+        for pid, nome, qtd, total in rows:
             labels.append(nome)
             counts.append(int(qtd))
             totals.append(float(total or 0))
             ids_present.add(pid)
 
-        # incluir funcionários com 0 vendas
+        # incluir garçons com 0 vendas
         if include_zeros:
-            q = db.query(Pessoa)
-            if role:
-                q = q.filter(func.lower(Pessoa.papel) == role.lower())
-            pessoas = q.all()
+            pessoas = db.query(Pessoa) \
+                .filter(func.lower(Pessoa.papel) == 'garcom') \
+                .all()
 
             for p in pessoas:
                 if p.id_pessoa not in ids_present:
@@ -2650,8 +2620,6 @@ def vendas_valor_por_funcionario_mes():
 
         return jsonify({
             "month": month_str,
-            "role": role,
-            "include_delivery": include_delivery,
             "labels": labels,
             "counts": counts,
             "totals": totals
@@ -2663,7 +2631,7 @@ def vendas_valor_por_funcionario_mes():
 
 @app.route('/vendas_hoje_por_funcionario', methods=['GET'])
 def vendas_hoje_por_funcionario():
-    print("aaaaaaaaaaaaaaaa")
+    # print("aaaaaaaaaaaaaaaa")
 
     hoje = datetime.now().strftime('%Y-%m-%d')
     role = request.args.get('role')
@@ -2674,10 +2642,11 @@ def vendas_hoje_por_funcionario():
         qry = db.query(
             Venda.pessoa_id.label('pessoa_id'),
             Pessoa.nome_pessoa.label('nome'),
+
             func.count(Venda.id_venda).label('qtd'),
             func.coalesce(func.sum(Venda.valor_venda), 0).label('total')
         ).join(Pessoa, Pessoa.id_pessoa == Venda.pessoa_id) \
-         .filter(Venda.data_venda.like(f"{hoje}%"))  # 🔥 AQUI ESTÁ A CORREÇÃO
+            .filter(Venda.data_venda.like(f"{hoje}%"))  # 🔥 AQUI ESTÁ A CORREÇÃO
 
         if role:
             qry = qry.filter(func.lower(Pessoa.papel) == role.lower())
@@ -2698,10 +2667,10 @@ def vendas_hoje_por_funcionario():
             counts.append(int(qtd))
             totals.append(float(total or 0))
 
-        print("ROWS:", rows)
-        print("LABELS:", labels)
-        print("COUNTS:", counts)
-        print("TOTALS:", totals)
+        # print("ROWS:", rows)
+        # print("LABELS:", labels)
+        # print("COUNTS:", counts)
+        # print("TOTALS:", totals)
 
         return jsonify({
             "date": hoje,

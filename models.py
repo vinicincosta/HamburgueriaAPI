@@ -46,6 +46,7 @@ class Lanche(Base):
         }
         return var_lanche
 
+
 class Insumo(Base):
     __tablename__ = 'insumos'
     id_insumo = Column(Integer, primary_key=True)
@@ -83,6 +84,7 @@ class Insumo(Base):
         }
         return var_insumo
 
+
 class Lanche_insumo(Base):
     __tablename__ = 'lanche_insumos'
     id_lanche_insumo = Column(Integer, primary_key=True)
@@ -118,6 +120,7 @@ class Lanche_insumo(Base):
         }
         return var_lanche_insumo
 
+
 class Categoria(Base):
     __tablename__ = 'categorias'
     id_categoria = Column(Integer, primary_key=True)
@@ -148,6 +151,7 @@ class Categoria(Base):
             'nome_categoria': self.nome_categoria,
         }
         return var_categoria
+
 
 class Venda(Base):
     __tablename__ = 'vendas'
@@ -209,23 +213,27 @@ class Venda(Base):
         }
         return var_venda
 
+
 class Pedido(Base):
     __tablename__ = 'pedidos'
+
     id_pedido = Column(Integer, primary_key=True, autoincrement=True)
-    data_pedido = Column(String(10), nullable=False, index=True)
-    numero_mesa = Column(Integer, nullable=True,index=True)
+    data_pedido = Column(String(19), nullable=False, index=True)
+    numero_mesa = Column(Integer, nullable=True, index=True)
+
     id_lanche = Column(Integer, ForeignKey('lanches.id_lanche'), nullable=True)
     id_bebida = Column(Integer, ForeignKey('bebidas.id_bebida'), nullable=True)
     id_pessoa = Column(Integer, ForeignKey('pessoas.id_pessoa'), nullable=True)
 
+    # ✅ NOVAS COLUNAS
+    qtd_lanche = Column(Integer, nullable=False, default=1)
+    qtd_bebida = Column(Integer, nullable=False, default=0)
+
     detalhamento = Column(String(50), nullable=True, index=True)
-    ajustes_receita = Column(String(100), nullable=True, index=True)
+    ajustes_receita = Column(String(200), nullable=True)
 
     status = Column(Integer, nullable=False, index=True)
     status_fechado = Column(Boolean, nullable=False, index=True)
-
-
-
 
     def __repr__(self):
         return 'Pedido: {}, {}, {}, {}'.format(self.id_pedido, self.numero_mesa, self.status_fechado, self.data_venda)
@@ -237,6 +245,7 @@ class Pedido(Base):
         except:
             db_session.rollback()
             raise
+
     def delete(self, db_session):
         try:
             db_session.delete(self)
@@ -244,16 +253,18 @@ class Pedido(Base):
         except:
             db_session.rollback()
             raise
+
     def serialize(self):
         var_pedido = {
             "id_pedido": self.id_pedido,
             "numero_da_mesa": self.numero_mesa,
             "id_lanche": self.id_lanche,
+            "qtd_lanche": self.qtd_lanche,  # ✅
             "id_bebida": self.id_bebida,
+            "qtd_bebida": self.qtd_bebida,  # ✅
             "id_pessoa": self.id_pessoa,
             "detalhamento": self.detalhamento,
             "ajustes_receita": self.ajustes_receita,
-            # status condição de pedido pronto
             "status": self.status,
             "status_pago": self.status_fechado,
             "data_pedido": self.data_pedido,
@@ -270,8 +281,10 @@ class Bebida(Base):
     quantidade = Column(Integer, nullable=False, index=True)
     categoria = Column(Integer, ForeignKey('categorias.id_categoria'), nullable=False)
     status_bebida = Column(Boolean, nullable=False, index=True, default=True)
+
     def __repr__(self):
         return '<Bebida: {} {}>'.format(self.id_bebida, self.nome_bebida)
+
     def save(self, db_session):
         try:
             db_session.add(self)
@@ -279,6 +292,7 @@ class Bebida(Base):
         except:
             db_session.rollback()
             raise
+
     def delete(self, db_session):
         try:
             db_session.delete(self)
@@ -298,6 +312,7 @@ class Bebida(Base):
             "status_bebida": self.status_bebida,
         }
 
+
 class Entrada(Base):
     __tablename__ = 'entradas'
     id_entrada = Column(Integer, primary_key=True)
@@ -306,10 +321,10 @@ class Entrada(Base):
     qtd_entrada = Column(Integer, nullable=False, index=True)
     valor_entrada = Column(Float, nullable=False, index=True)
 
-
     # relacionamento com Insumo
     insumo_id = Column(Integer, ForeignKey('insumos.id_insumo'), nullable=True)
     bebida_id = Column(Integer, ForeignKey('bebidas.id_bebida'), nullable=True)
+
     def __repr__(self):
         return f'<Entrada: {self.id_entrada} {self.data_entrada}>'
 
@@ -340,6 +355,7 @@ class Entrada(Base):
             'bebida_id': self.bebida_id,
         }
 
+
 class Pessoa(Base):
     __tablename__ = 'pessoas'
     id_pessoa = Column(Integer, primary_key=True)
@@ -351,13 +367,11 @@ class Pessoa(Base):
     senha_hash = Column(String, nullable=False)
     email = Column(String, nullable=True, unique=True)
 
-
     def __repr__(self):
         return 'Pessoa: {} {}>'.format(self.id_pessoa, self.nome_pessoa)
 
     def set_senha_hash(self, senha):
         self.senha_hash = generate_password_hash(senha)
-
 
     def check_password_hash(self, senha):
         return check_password_hash(self.senha_hash, senha)
@@ -391,6 +405,7 @@ class Pessoa(Base):
 
         }
         return var_pessoa
+
 
 def init_db():
     Base.metadata.create_all(bind=engine)
