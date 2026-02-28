@@ -4,6 +4,8 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import joinedload
 from datetime import datetime
 from collections import defaultdict
+
+from statsmodels.tsa.vector_ar.plotting import adjust_subplots
 from werkzeug.exceptions import BadRequest
 from models import *
 from flask_jwt_extended import create_access_token, jwt_required, JWTManager, get_jwt_identity, get_jwt
@@ -749,9 +751,22 @@ def cadastrar_pedido():
             bebida.quantidade -= qtd_bebida
             db_session.add(bebida)
 
-        receita_final_str_keys = {
-            str(k): v for k, v in receita_final.items()
-        }
+        ajustes_formatados = []
+
+        for insumo_id, qtd in receita_final.items():
+            insumo = db_session.execute(
+                select(Insumo).filter_by(id_insumo=insumo_id)
+            ).scalar_one()
+
+            ajustes_formatados.append({
+                "insumo_id": insumo_id,
+                "insumo_nome": insumo.nome_insumo,
+                "quantidade": qtd
+            })
+
+        print("DADOS RECEBIDOS:", json.dumps(dados, indent=2))
+        print("OBSERVACOES RECEBIDAS:", observacoes)
+
 
 
         # -------- CRIAR PEDIDO ÚNICO --------
@@ -764,20 +779,19 @@ def cadastrar_pedido():
             qtd_lanche=qtd_lanche,
             qtd_bebida=qtd_bebida,
             detalhamento=detalhamento,
-            ajustes_receita=json.dumps(receita_final_str_keys) if receita_final else None,
+            ajustes_receita=json.dumps(ajustes_formatados) if receita_final else None,
+
             status=False,
             status_fechado=False
         )
+
 
         db_session.add(novo_pedido)
         db_session.commit()
 
         pedido_dict = novo_pedido.serialize()
 
-        if receita_final:
-            pedido_dict["ajustes_receita"] = {
-                int(k): v for k, v in receita_final_str_keys.items()
-            }
+
 
         pedido_dict["tipo_pedido"] = tipo_pedido
 
@@ -2249,6 +2263,7 @@ def editar_pessoa(id_pessoa):
 @app.route("/lanche_insumo", methods=["DELETE"])
 # @jwt_required()
 def deletar_lanche_insumo():
+    print("aaaaaaaaaaaaaaaaa")
     """
         DELETE /lanche_insumo
         ----------------------------------------------------
@@ -2283,14 +2298,21 @@ def deletar_lanche_insumo():
     # relacionamento = local_session.query(Lanche_insumo).filter_by(
     #     lanche_id=lanche_id, insumo_id=insumo_id
     # ).first()
+
+    # Trazendo objeto
     relacionamento = local_session.execute(
-        select(Lanche_insumo).filter_by(lanche_id=lanche_id, insumo_id=insumo_id)).first()
+        select(Lanche_insumo).filter_by(
+            lanche_id=lanche_id,
+            insumo_id=insumo_id
+        )
+    ).scalars().first()
 
     if not relacionamento:
         return jsonify({"error": "Esse insumo não está vinculado a esse lanche"}), 404
 
     try:
-        relacionamento.delete(local_session)
+        local_session.delete(relacionamento)
+        local_session.commit()
         return jsonify({"success": "Relacionamento removido com sucesso"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -2340,6 +2362,8 @@ def deletar_pessoa(id_pessoa):
         return jsonify({"error": str(e)})
     finally:
         db_session.close()
+
+
 
 
 # grafco de vendas
@@ -2440,124 +2464,7 @@ def faturamento_mensal():
     return jsonify(resposta)
 
 
-#
-# @app.route('/vendas_valor_por_funcionario', methods=['GET'])
-# def vendas_valor_por_funcionario():
-#     """
-#     GET /vendas_valor_por_funcionario
-#     ----------------------------------------------------
-#     Retorna, por funcionário, a quantidade de vendas e o
-#     total vendido *no dia*.
-#
-#      Query Params:
-#         ?date=YYYY-MM-DD      (default = hoje)
-#         ?role=garcom
-#         ?include_delivery=true/false
-#         ?include_zeros=true/false
-#
-#      O que faz:
-#         - Filtra vendas do dia.
-#         - Opcionalmente filtra por papel.
-#         - Agrupa por funcionário.
-#         - Pode incluir funcionários com zero vendas.
-#
-#      Exemplo:
-#     {
-#         "labels": ["João", "Marcos"],
-#         "counts": [3, 1],
-#         "totals": [85.50, 22.00]
-#     }
-#     """
-#     date_str = request.args.get('date') or datetime.now().strftime('%Y-%m-%d')
-#     role = request.args.get('role')                     # ex: "garcom"
-#     include_delivery = request.args.get('include_delivery', 'false').lower() == 'true'
-#     include_zeros = request.args.get('include_zeros', 'false').lower() == 'true'
-#
-#     db = local_session()
-#     try:
-#         # Base: vendas do dia (pega somente a parte YYYY-MM-
-#         stmt = (
-#             select(
-#                 Venda.pessoa_id.label('pessoa_id'),
-#                 func.count(Venda.id_venda).label('qtd'),
-#                 func.coalesce(func.sum(Venda.valor_venda), 0).label('total')
-#             )
-#             .filter_by(func.substr(Venda.data_venda, 1, 10) == date_str)
-#         )
-#         # qry = db.query(
-#         #     Venda.pessoa_id.label('pessoa_id'),
-#         #     func.count(Venda.id_venda).label('qtd'),
-#         #     func.coalesce(func.sum(Venda.valor_venda), 0).label('total')
-#         # ).filter(func.substr(Venda.data_venda, 1, 10) == date_str)
-#
-#         # Se for para excluir deliveries e SE existir relacionamento via Pedido, usamos numero_mesa==0
-#         # Tentativa segura: checar se as colunas existem e o modelo Pedido está presente
-#         use_pedido_flag = False
-#         try:
-#             # checa se Venda tem coluna pedido_id e existe o modelo Pedido com numero_mesa
-#             if 'pedido_id' in Venda.__table__.columns and 'numero_mesa' in Pedido.__table__.columns:
-#                 use_pedido_flag = True
-#         except Exception:
-#             use_pedido_flag = False
-#
-#         if not include_delivery:
-#             if use_pedido_flag:
-#                 # join com Pedido e excluir where Pedido.numero_mesa == 0
-#                 qry = qry.join(Pedido, Pedido.id_pedido == Venda.pedido_id).filter(Pedido.numero_mesa != 0)
-#             else:
-#                 # fallback: excluir quando endereco indica delivery ou endereco == '0' ou vazio
-#                 qry = qry.filter(
-#                     and_(
-#                         not_(Venda.endereco.ilike('%delivery%')),
-#                         not_(Venda.endereco.ilike('%entrega%')),
-#                         Venda.endereco != '0',
-#                         Venda.endereco != ''
-#                     )
-#                 )
-#
-#         # se pediu filtrar por papel, junta com Pessoa e filtra
-#         if role:
-#             qry = qry.join(Pessoa, Pessoa.id_pessoa == Venda.pessoa_id).filter(func.lower(Pessoa.papel) == role.lower())
-#
-#         rows = qry.group_by(Venda.pessoa_id).order_by(func.sum(Venda.valor_venda).desc()).all()
-#
-#         labels = []
-#         counts = []
-#         totals = []
-#         ids_present = set()
-#
-#         for pessoa_id, qtd, total in rows:
-#             pessoa = db.execute(select(Pessoa).filter_by(id_pessoa=pessoa_id)).first()
-#             # pessoa = db.query(Pessoa).filter_by(id_pessoa=pessoa_id).first()
-#             nome = pessoa.nome_pessoa if pessoa else f"ID {pessoa_id}"
-#             labels.append(nome)
-#             counts.append(int(qtd))
-#             totals.append(float(total or 0))
-#             ids_present.add(pessoa_id)
-#
-#         # incluir zeros: buscar todos os funcionários com o papel (ou todos se role None)
-#         if include_zeros:
-#             pquery = db.execute(select(Pessoa))
-#             # pquery = db.query(Pessoa)
-#             if role:
-#                 pquery = pquery.filter(func.lower(Pessoa.papel) == role.lower())
-#             pessoas = pquery.all()
-#             for p in pessoas:
-#                 if p.id_pessoa not in ids_present:
-#                     labels.append(p.nome_pessoa)
-#                     counts.append(0)
-#                     totals.append(0.0)
-#
-#         return jsonify({
-#             "date": date_str,
-#             "role": role,
-#             "include_delivery": include_delivery,
-#             "labels": labels,
-#             "counts": counts,
-#             "totals": totals
-#         })
-#     finally:
-#         db.close()
+
 
 @app.route('/vendas_valor_por_funcionario_mes', methods=['GET'])
 def vendas_valor_por_funcionario_mes():

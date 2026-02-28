@@ -1,3 +1,4 @@
+import json
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, Float, ForeignKey
 from sqlalchemy.orm import sessionmaker, scoped_session, declarative_base, relationship
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -255,21 +256,45 @@ class Pedido(Base):
             raise
 
     def serialize(self):
-        var_pedido = {
+
+        ajustes = None
+
+        if self.ajustes_receita:
+            try:
+                dados = json.loads(self.ajustes_receita)
+
+                # Se já for lista (novo formato)
+                if isinstance(dados, list):
+                    ajustes = dados
+
+                # Se for dict antigo { "3": 200 }
+                elif isinstance(dados, dict):
+                    ajustes = [
+                        {
+                            "insumo_id": int(k),
+                            "insumo_nome": None,
+                            "quantidade": v
+                        }
+                        for k, v in dados.items()
+                    ]
+
+            except Exception:
+                ajustes = None
+
+        return {
             "id_pedido": self.id_pedido,
-            "numero_da_mesa": self.numero_mesa,
+            "numero_mesa": self.numero_mesa,
             "id_lanche": self.id_lanche,
-            "qtd_lanche": self.qtd_lanche,  # ✅
             "id_bebida": self.id_bebida,
-            "qtd_bebida": self.qtd_bebida,  # ✅
             "id_pessoa": self.id_pessoa,
+            "qtd_lanche": self.qtd_lanche,
+            "qtd_bebida": self.qtd_bebida,
             "detalhamento": self.detalhamento,
-            "ajustes_receita": self.ajustes_receita,
             "status": self.status,
-            "status_pago": self.status_fechado,
+            "status_fechado": self.status_fechado,
             "data_pedido": self.data_pedido,
+            "ajustes_receita": ajustes
         }
-        return var_pedido
 
 
 class Bebida(Base):
