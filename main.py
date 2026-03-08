@@ -767,8 +767,6 @@ def cadastrar_pedido():
         print("DADOS RECEBIDOS:", json.dumps(dados, indent=2))
         print("OBSERVACOES RECEBIDAS:", observacoes)
 
-
-
         # -------- CRIAR PEDIDO ÚNICO --------
         novo_pedido = Pedido(
             data_pedido=data_pedido,
@@ -785,13 +783,10 @@ def cadastrar_pedido():
             status_fechado=False
         )
 
-
         db_session.add(novo_pedido)
         db_session.commit()
 
         pedido_dict = novo_pedido.serialize()
-
-
 
         pedido_dict["tipo_pedido"] = tipo_pedido
 
@@ -1745,6 +1740,74 @@ def get_insumo_id(id_insumo):
         db_session.close()
 
 
+@app.route('/get_bebida_id/<id_bebida>', methods=['GET'])
+def get_bebida_id(id_bebida):
+    db_session = local_session()
+
+    try:
+        bebida_result = db_session.execute(select(
+            Bebida).filter_by(id_bebida=int(id_bebida))).scalar_one_or_none()
+
+        if not bebida_result:
+            return jsonify({
+                "error": "Bebida não encotrada"
+            }), 404
+
+        else:
+            return jsonify({
+                "success": "Bebida encontrada com sucesso",
+                "bebida": bebida_result.serialize()
+            })
+
+    except ValueError:
+        return jsonify({
+            "error": "ID do insumo deve ser numérico"
+        }), 400
+
+    except Exception as e:
+        return jsonify({
+            "error": str(e)
+        }), 500
+
+    finally:
+        db_session.close()
+
+
+@app.route('/get_lanche_id/<id_lanche>', methods=['GET'])
+def get_lanche_id(id_lanche):
+    print("aaaaaaaa")
+    db_session = local_session()
+    try:
+        lanche = db_session.execute(select(Lanche).filter_by(id_lanche=int(id_lanche))
+                                    ).scalar_one_or_none()
+
+        if not lanche:
+            return jsonify({
+                "error": "Lanche Não encontrado"
+            }), 404
+
+        return jsonify({
+            "success": "Lanche encontrado com sucesso",
+            "id_lanche": lanche.id_lanche,
+            "nome_lanche": lanche.nome_lanche,
+            "valor_lanche": lanche.valor_lanche,
+            "disponivel": lanche.disponivel
+        })
+
+    except ValueError:
+        return jsonify({
+            "error": "ID do insumo deve ser numérico"
+        }), 400
+
+    except Exception as e:
+        return jsonify({
+            "error": str(e)
+        }), 500
+
+    finally:
+        db_session.close()
+
+
 @app.route('/categorias/categoria<id_categoria>', methods=['GET'])
 # @jwt_required()
 # @roles_required('admin')
@@ -1765,16 +1828,18 @@ def listar_cateogira_by_id(id_categoria):
        """
     db_session = local_session()
     try:
-        sql_categoria = select(Categoria).filter_by(id_categoria=Categoria.id_categoria)
-        resultado = db_session.execute(sql_categoria).scalar()
+        categoria_del = db_session.execute(
+            select(Categoria).filter_by(id_categoria=int(id_categoria))).scalar_one_or_none()
         # pessoas = []
         # for n in resultado_pessoas:
         #     pessoas.append(n.serialize())
         #     print(pessoas[-1])
 
         return jsonify({
-            "categoria": resultado.serialize(),
-            "success": "Listado com sucesso"
+            "categoria": categoria_del.serialize(),
+            "success": "Listado com sucesso",
+            "id_categoria": categoria_del.id_categoria,
+            "nome_categoria": categoria_del.nome_categoria,
         })
     except Exception as e:
         return jsonify({"error": str(e)})
@@ -1974,73 +2039,128 @@ def editar_pedido_status(id_pedido):  # editar pedido status
 
 
 @app.route('/lanches/<id_lanche>', methods=['PUT'])
-# @jwt_required()
 def editar_lanche(id_lanche):
+    print("cmç editar lanche")
     """
-       PUT /lanches/<id_lanche>
-       ----------------------------------------------------
-       Edita as informações de um lanche existente.
+          PUT /lanches/<id_lanche>
+          ----------------------------------------------------
+          Edita as informações de um lanche existente.
 
-        Parâmetro:
-           id_lanche (int)
+           Parâmetro:
+              id_lanche (int)
 
-        Corpo esperado:
-       {
-           "nome_lanche": "X-Burguer",
-           "descricao_lanche": "Pão, carne e queijo",
-           "valor_lanche": 15.90
-       }
+           Corpo esperado:
+          {
+              "nome_lanche": "X-Burguer",
+              "descricao_lanche": "Pão, carne e queijo",
+              "valor_lanche": 15.90
+          }
 
-        O que faz:
-           - Verifica se o lanche existe.
-           - Valida campos obrigatórios.
-           - Atualiza nome, descrição e valor.
-           - Salva e retorna o lanche atualizado.
+           O que faz:
+              - Verifica se o lanche existe.
+              - Valida campos obrigatórios.
+              - Atualiza nome, descrição e valor.
+              - Salva e retorna o lanche atualizado.
 
-        Exemplo de resposta:
-       {
-           "success": "lanche editado com sucesso",
-           "lanches": { ...dados... }
-       }
-       """
+           Exemplo de resposta:
+          {
+              "success": "lanche editado com sucesso",
+              "lanches": { ...dados... }
+          }
+          """
+
     db_session = local_session()
+
     try:
-        dados_editar_lanche = request.get_json()
+        dados = request.get_json()
 
-        lanche_resultado = db_session.execute(select(Lanche).filter_by(id_lanche=int(id_lanche))).scalar()
-        print(lanche_resultado)
+        if not dados:
+            return jsonify({"error": "JSON inválido"}), 400
 
-        if not lanche_resultado:
-            return jsonify({"error": "Lanche não encontrado"}), 400
+        lanche = db_session.execute(
+            select(Lanche).filter_by(id_lanche=int(id_lanche))
+        ).scalar()
 
-        campos_obrigatorios = ["nome_lanche", "descricao_lanche", "valor_lanche"]
+        if not lanche:
+            return jsonify({"error": "Lanche não encontrado"}), 404
 
-        if not all(campo in dados_editar_lanche for campo in campos_obrigatorios):
+        campos = ["nome_lanche", "descricao_lanche", "valor_lanche", "disponivel"]
+
+        if not all(campo in dados for campo in campos):
             return jsonify({"error": "Campo inexistente"}), 400
 
-        if any(not dados_editar_lanche[campo] for campo in campos_obrigatorios):
+        if any(not dados[campo] for campo in ["nome_lanche", "descricao_lanche"]):
+            return jsonify({"error": "Preencher todos os campos"}), 400
+        else:
+
+            lanche.nome_lanche = dados["nome_lanche"]
+            lanche.descricao_lanche = dados["descricao_lanche"]
+            lanche.valor_lanche = float(dados["valor_lanche"])
+
+            if "disponivel" in dados:
+                lanche.disponivel = True if str(dados["disponivel"]).lower() == "true" else False
+
+            lanche.save(db_session)
+
+        return jsonify({
+            "success": "lanche editado com sucesso",
+            "lanche": lanche.serialize()
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        db_session.close()
+
+
+@app.route('/bebidas/<id_bebida>', methods=['PUT'])
+def editar_bebida(id_bebida):
+    print("cmç API editar bebida")
+    db_session = local_session()
+    try:
+        dados = request.get_json()
+
+        if not dados:
+            return jsonify({"error": "JSON inválido"}), 400
+
+        bebida_filtro = db_session.execute(
+            select(Bebida).filter_by(id_bebida=int(id_bebida))
+        ).scalar()
+
+        if not bebida_filtro:
+            return jsonify({"error": "Bebida não encotrada"}), 400
+
+        campos = ["nome_bebida", "descricao", "valor", "quantidade", "categoria", "status_bebida"]
+
+        if not all(campos in dados for campos in campos):
+            return jsonify({"error": "Campo inexistente"}), 400
+
+        if any(not dados[campo] for campo in campos):
             return jsonify({"error": "Preencher todos os campos"}), 400
 
         else:
-            lanche_resultado.nome_lanche = dados_editar_lanche['nome_lanche']
-            lanche_resultado.valor_lanche = dados_editar_lanche['valor_lanche']
-            lanche_resultado.descricao_lanche = dados_editar_lanche['descricao_lanche']
+            bebida_filtro.nome_bebida = dados["nome_bebida"]
+            bebida_filtro.descricao = dados["descricao"]
+            bebida_filtro.quantidade = int(dados["quantidade"])
+            bebida_filtro.categoria = dados["categoria"]
 
-            lanche_resultado.save(db_session)
-            dicio = lanche_resultado.serialize()
-            resultado = {"success": "lanche editado com sucesso", "lanches": dicio}
+            if "status_bebida" in dados:
+                bebida_filtro.status_bebida = True if str(dados["disponivel"]).lower() == "true" else False
 
-            return jsonify(resultado), 201
+            bebida_filtro.save(db_session)
 
-    except ValueError:
         return jsonify({
-            "error": "Valor inserido inválido"
-        }), 400
+            "success": "Bebida editada com sucesso",
+            "bebida": bebida_filtro.serialize()
+        }), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)})
+        return jsonify({"error": str(e)}), 500
+
     finally:
         db_session.close()
+
 
 
 @app.route('/insumos/<id_insumo>', methods=['PUT'])  #
@@ -2364,8 +2484,6 @@ def deletar_pessoa(id_pessoa):
         db_session.close()
 
 
-
-
 # grafco de vendas
 @app.route('/dados_grafico')
 def dados_grafico():
@@ -2462,8 +2580,6 @@ def faturamento_mensal():
         for mes, valor in sorted(faturamento.items())
     ]
     return jsonify(resposta)
-
-
 
 
 @app.route('/vendas_valor_por_funcionario_mes', methods=['GET'])
