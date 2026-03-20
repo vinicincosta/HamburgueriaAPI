@@ -2143,10 +2143,11 @@ def editar_bebida(id_bebida):
             bebida_filtro.nome_bebida = dados["nome_bebida"]
             bebida_filtro.descricao = dados["descricao"]
             bebida_filtro.quantidade = int(dados["quantidade"])
+            bebida_filtro.valor = dados["valor"]
             bebida_filtro.categoria = dados["categoria"]
 
             if "status_bebida" in dados:
-                bebida_filtro.status_bebida = True if str(dados["disponivel"]).lower() == "true" else False
+                bebida_filtro.status_bebida = True if str(dados["status_bebida"]).lower() == "true" else False
 
             bebida_filtro.save(db_session)
 
