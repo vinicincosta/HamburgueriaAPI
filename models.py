@@ -219,6 +219,8 @@ class Pedido(Base):
     __tablename__ = 'pedidos'
 
     id_pedido = Column(Integer, primary_key=True, autoincrement=True)
+    id_venda = Column(Integer, ForeignKey("vendas.id_venda"), nullable=True)
+
     data_pedido = Column(String(19), nullable=False, index=True)
     numero_mesa = Column(Integer, nullable=True, index=True)
 
@@ -283,6 +285,7 @@ class Pedido(Base):
 
         return {
             "id_pedido": self.id_pedido,
+            "id_venda": self.id_venda,
             "numero_mesa": self.numero_mesa,
             "id_lanche": self.id_lanche,
             "id_bebida": self.id_bebida,

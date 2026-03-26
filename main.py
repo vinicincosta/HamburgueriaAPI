@@ -640,6 +640,7 @@ def cadastrar_pedido():
                 return jsonify({"error": f"Número de mesa inválido: {numero_mesa_raw}"}), 400
 
         # -------- DADOS BÁSICOS --------
+        id_venda = dados.get("id_venda")
         id_pessoa = int(dados["id_pessoa"])
         qtd_lanche = int(dados.get("qtd_lanche", 1))
         qtd_bebida = int(dados.get("qtd_bebida", 1 if dados.get("id_bebida") else 0))
@@ -730,7 +731,7 @@ def cadastrar_pedido():
                 db_session.add(insumo)
 
         # -------- BEBIDA --------
-        # -------- BEBIDA --------
+
         if id_bebida:
 
             bebida = db_session.execute(
@@ -778,7 +779,7 @@ def cadastrar_pedido():
             qtd_bebida=qtd_bebida,
             detalhamento=detalhamento,
             ajustes_receita=json.dumps(ajustes_formatados) if receita_final else None,
-
+            id_venda=id_venda,
             status=False,
             status_fechado=False
         )
@@ -1037,11 +1038,6 @@ def cadastrar_venda():
                 str(k): v for k, v in receita_final.items()
             }
 
-        # Nenhum item enviado
-        if not lanche_id and not bebida_id:
-            return jsonify(
-                {"error": "É necessário informar pelo menos um lanche ou uma bebida"}
-            ), 400
 
         # -------- SALVAR VENDA ----------
         nova_venda = Venda(
