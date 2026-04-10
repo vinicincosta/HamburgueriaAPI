@@ -1,25 +1,24 @@
 import json
 from flask import Flask, jsonify, request, redirect, url_for
 from sqlalchemy import select, func
-from sqlalchemy.orm import joinedload
 from datetime import datetime
 from collections import defaultdict
-
-from statsmodels.tsa.vector_ar.plotting import adjust_subplots
-from werkzeug.exceptions import BadRequest
 from models import *
 from flask_jwt_extended import create_access_token, jwt_required, JWTManager, get_jwt_identity, get_jwt
 from functools import wraps
-from werkzeug.security import generate_password_hash, check_password_hash
-from flask_cors import CORS
-# from flask_login import LoginManager, current_user, login_required, login_user, logout_user, current_user
+
 from sqlalchemy import func, and_, not_
+
+
+from flask_cors import CORS
+from flask_jwt_extended import JWTManager
+
 
 app = Flask(__name__)
 CORS(app)
+
 app.config['JWT_SECRET_KEY'] = "03050710"
 jwt = JWTManager(app)
-
 
 def roles_required(*roles):
     """
@@ -2745,6 +2744,6 @@ def atualizar_status_pedido(id_pedido):
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host="0.0.0.0", port=5002)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
 
 # TESTE PUSH
