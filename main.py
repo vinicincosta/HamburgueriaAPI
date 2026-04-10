@@ -8,7 +8,7 @@ from flask_jwt_extended import create_access_token, jwt_required, JWTManager, ge
 from functools import wraps
 
 from sqlalchemy import func, and_, not_
-
+import os
 
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
@@ -17,7 +17,9 @@ from flask_jwt_extended import JWTManager
 app = Flask(__name__)
 CORS(app)
 
-app.config['JWT_SECRET_KEY'] = "03050710"
+# app.config['JWT_SECRET_KEY'] = "03050710"
+
+app.config['JWT_SECRET_KEY'] = os.environ.get("JWT_SECRET_KEY")
 jwt = JWTManager(app)
 
 def roles_required(*roles):
