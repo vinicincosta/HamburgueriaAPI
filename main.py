@@ -9,10 +9,8 @@ from functools import wraps
 
 from sqlalchemy import func, and_, not_
 import os
-
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
-
 
 app = Flask(__name__)
 CORS(app)
