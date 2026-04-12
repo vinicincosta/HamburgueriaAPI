@@ -13,11 +13,21 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 
 app = Flask(__name__)
-CORS(app)
 
-# app.config['JWT_SECRET_KEY'] = "03050710"
 
-app.config['JWT_SECRET_KEY'] = os.environ.get("JWT_SECRET_KEY")
+CORS(app, origins=[
+    "https://seu-app.vercel.app",
+
+    # por conta do routes_web da APlicação web.
+    "https://seu-render-app.onrender.com"
+    
+    # 👇 NOVO (Flet)
+    "https://seu-flet-app.onrender.com"
+
+])
+
+app.config['JWT_SECRET_KEY'] = os.getenv("JWT_SECRET_KEY", "dev-secret")
+# senha 03050710
 jwt = JWTManager(app)
 
 def roles_required(*roles):
